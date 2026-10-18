@@ -7,7 +7,7 @@ const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
 const ESTADOS_IDEA = ["nueva", "verificando", "verificada", "descartada", "en_produccion", "usada"];
 const FORMATOS = ["radio", "reel", "reel_herida", "linkedin", "threads", "facebook", "x", "carrusel", "youtube", "otro"];
 const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "enviada_equipo", "rechazada", "programada", "publicada"];
-const MARCAS = ["Dr. Arrieta", "Antifrágil", "Antifrágil / Dr. Arrieta", "Antirrebote"];
+const CARRILES = ["agencia", "creador"]; // carrusel: agencia = diseñadoras proponen el gancho; creador = El Creador lo escribe completo
 
 const now = () => new Date().toISOString();
 const clip = (s, n) => (s == null ? null : String(s).slice(0, n));
@@ -92,9 +92,9 @@ export async function registrarPieza(env, a = {}) {
     throw new Error(`No existe la idea ${ideaId}.`);
   const t = now();
   const r = await env.HUB_DB.prepare(
-    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca, carril, copy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
   )
-    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), clip(a.marca || "Dr. Arrieta", 100))
+    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), "Dr. Arrieta", formato === "carrusel" ? check(a.carril || "creador", CARRILES, "carril") : null, clip(a.copy, 4000))
     .first();
   if (ideaId) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'en_produccion', actualizada = ? WHERE id = ? AND estado IN ('nueva','verificando','verificada')").bind(t, ideaId).run();
   return piezaOut(r);
@@ -105,8 +105,9 @@ export async function listarPiezas(env, a = {}) {
   if (a.estado) w.push("p.estado = ?"), b.push(check(a.estado, ESTADOS_PIEZA, "estado"));
   if (a.formato) w.push("p.formato = ?"), b.push(check(a.formato, FORMATOS, "formato"));
   if (a.idea_id) w.push("p.idea_id = ?"), b.push(Number(a.idea_id));
+  if (a.carril) w.push("p.carril = ?"), b.push(check(a.carril, CARRILES, "carril"));
   const completo = a.completo === true || a.completo === "true" || a.completo === "1";
-  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.marca, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario,
+  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario,
     ${completo ? "p.texto" : "substr(p.texto, 1, 300)"} AS texto, i.enlace AS idea_enlace, i.fuente AS idea_fuente
     FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ?`;
   const { results } = await env.HUB_DB.prepare(sql).bind(...b, lim(a.limite)).all();
@@ -119,7 +120,8 @@ export async function actualizarPieza(env, a = {}) {
   if (a.texto != null) sets.push("texto = ?"), b.push(clip(a.texto, 30000));
   if (a.gancho != null) sets.push("gancho = ?"), b.push(clip(a.gancho, 1000));
   if (a.titulo != null) sets.push("titulo = ?"), b.push(clip(a.titulo, 300));
-  if (a.marca != null) sets.push("marca = ?"), b.push(clip(a.marca, 100));
+  if (a.carril != null) sets.push("carril = ?"), b.push(check(a.carril, CARRILES, "carril"));
+  if (a.copy != null) sets.push("copy = ?"), b.push(clip(a.copy, 4000));
   if (a.comentario != null) sets.push("comentario = ?"), b.push(clip(a.comentario, 4000));
   if (a.fecha_publicacion != null) sets.push("fecha_publicacion = ?"), b.push(clip(a.fecha_publicacion, 40));
   if (a.enlace_publicado != null) sets.push("enlace_publicado = ?"), b.push(clip(a.enlace_publicado, 1000));
@@ -146,31 +148,48 @@ export async function contenidoResumen(env) {
   return { grabar_hoy: hoy.results, ideas, piezas };
 }
 
-// ---------- Filas listas para el Excel del equipo de diseño (CONTENT RRSS - SEBAS ARRIETA) ----------
-// Columnas: IDEA DE CONTENIDO | INFORMACIÓN | REFE | MARCA | ARTES | STATUS | ... | FECHA Y HORA
+// ---------- Filas listas para las hojas de carruseles ----------
+// carril "agencia"  -> Excel de las diseñadoras "CONTENT RRSS - SEBAS ARRIETA" (hoja del mes).
+//   Va la materia prima SIN gancho: ellas proponen el gancho y la idea visual.
+//   Columnas: IDEA DE CONTENIDO | INFORMACIÓN | REFE | MARCA | ARTES | STATUS | ... | FECHA Y HORA
+// carril "creador"  -> hoja propia "CARRUSELES EL CREADOR": carrusel completo lámina por lámina.
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
 export async function filasExcel(env, a = {}) {
+  const carril = check(a.carril || "agencia", CARRILES, "carril");
   const estado = check(a.estado || "aprobada", ESTADOS_PIEZA, "estado");
-  const formato = check(a.formato || "carrusel", FORMATOS, "formato");
   const { results } = await env.HUB_DB.prepare(
     `SELECT p.*, i.enlace AS idea_enlace, i.estudio AS idea_estudio FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id
-     WHERE p.estado = ? AND p.formato = ? ORDER BY p.id LIMIT ?`
-  ).bind(estado, formato, lim(a.limite, 20, 100)).all();
+     WHERE p.estado = ? AND p.formato = 'carrusel' AND p.carril = ? ORDER BY p.id LIMIT ?`
+  ).bind(estado, carril, lim(a.limite, 20, 100)).all();
   const lima = new Date(Date.now() - 5 * 3600e3);
   return results.map((p) => {
     const est = parse(p.idea_estudio);
     const refe = est && typeof est === "object" ? [est.cita, est.enlace].filter(Boolean).join(" ") : est || "";
     const f = p.fecha_publicacion ? new Date(p.fecha_publicacion) : null;
+    const fecha = f ? `${String(f.getUTCDate()).padStart(2, "0")}/${String(f.getUTCMonth() + 1).padStart(2, "0")}` : "";
+    if (carril === "agencia")
+      return {
+        pieza_id: p.id,
+        hoja: MESES[(f || lima).getUTCMonth()],
+        idea_de_contenido: p.texto,
+        informacion: p.idea_enlace || "",
+        refe,
+        marca: "Dr. Arrieta",
+        artes: String(p.titulo || "").toUpperCase(),
+        status: "APROBACIÓN",
+        fecha,
+      };
     return {
       pieza_id: p.id,
-      hoja: MESES[(f || lima).getUTCMonth()],
-      idea_de_contenido: [p.gancho, p.texto].filter(Boolean).join("\n\n"),
-      informacion: p.idea_enlace || "",
-      refe,
-      marca: p.marca || "Dr. Arrieta",
-      artes: String(p.titulo || "").toUpperCase(),
-      status: "APROBADO",
-      fecha: f ? `${String(f.getUTCDate()).padStart(2, "0")}/${String(f.getUTCMonth() + 1).padStart(2, "0")}` : "",
+      fecha,
+      tema: String(p.titulo || "").toUpperCase(),
+      gancho: p.gancho || "",
+      ruta_gancho: p.ruta_gancho || "",
+      laminas: p.texto,
+      copy: p.copy || "",
+      fuente: p.idea_enlace || "",
+      referencia: refe,
+      status: "LISTO PARA DISEÑO",
     };
   });
 }
@@ -281,7 +300,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_registrar_pieza",
-    description: "Guarda una pieza escrita (guion de radio, reel de 30 s, reel herida abierta, LinkedIn, Threads, Facebook, X, carrusel, YouTube) ligada a su idea. Queda 'por_aprobar' salvo que se indique otro estado. Para carrusel: titulo = nombre corto del tema para ARTES, gancho = hook, texto = dirección para el equipo de diseño (cómo desarrollar y cómo cerrar).",
+    description: "Guarda una pieza escrita (guion de radio, reel de 30 s, reel herida abierta, LinkedIn, Threads, Facebook, X, carrusel, YouTube) ligada a su idea. Queda 'por_aprobar' salvo que se indique otro estado. Para carrusel carril 'agencia': titulo = tema corto, texto = materia prima (por qué importa, datos verificados, qué NO decir), SIN gancho. Carril 'creador': gancho = lámina 1, texto = láminas numeradas, copy = caption.",
     inputSchema: {
       type: "object",
       properties: {
@@ -290,7 +309,8 @@ export const contenidoTools = [
         titulo: { type: "string" },
         gancho: { type: "string" },
         ruta_gancho: { type: "string", description: "shock, comparativa, emocional, polémico, mito vs realidad, cultural…" },
-        marca: { type: "string", description: `Cuenta o marca: ${MARCAS.join(", ")}` },
+        carril: { type: "string", enum: CARRILES, description: "Solo carrusel. agencia: materia prima sin gancho para las diseñadoras. creador: carrusel completo de El Creador." },
+        copy: { type: "string", description: "Texto de la publicación (caption)" },
         texto: { type: "string" },
         estado: { type: "string", enum: ESTADOS_PIEZA },
         notas: { type: "string" },

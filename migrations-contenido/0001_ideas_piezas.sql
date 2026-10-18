@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS piezas (
   actualizada TEXT NOT NULL,
   idea_id INTEGER REFERENCES ideas(id),
   formato TEXT NOT NULL,           -- radio, reel, reel_herida, linkedin, threads, facebook, x, carrusel, youtube, otro
-  marca TEXT DEFAULT 'Dr. Arrieta',  -- Dr. Arrieta, Antifrágil, Antirrebote…
+  marca TEXT DEFAULT 'Dr. Arrieta',  -- por ahora solo @doctorarrieta
+  carril TEXT,                     -- solo carrusel: agencia (diseñadoras proponen gancho) o creador
+  copy TEXT,                       -- caption de la publicación
   titulo TEXT,
   gancho TEXT,
   ruta_gancho TEXT,

@@ -24,6 +24,8 @@ Nunca se guardan en este repositorio. Viven solo en Cloudflare:
 
 ## Espacio contenido (Worker `sebas-contenido`)
 
+Por ahora trabaja **solo con la marca @doctorarrieta**.
+
 Worker y base de datos **separados** del de salud: la salud nunca se mezcla con el contenido.
 
 - **Conector en Claude:** "Contenido Dr. Arrieta" → `https://sebas-contenido.sebastianarrietam.workers.dev/mcp`
@@ -45,7 +47,10 @@ Todas con el encabezado `Authorization: Bearer <CONTENIDO_API_KEY>`.
 | `GET /contenido/ideas?estado=nueva` | Leer ideas |
 | `GET /contenido/piezas?estado=aprobada&formato=linkedin` | Leer piezas aprobadas para publicarlas o pasarlas al equipo |
 | `POST /contenido/piezas/{id}` | Marcar `programada` / `publicada` con `enlace_publicado` y `metricas` |
-| `GET /contenido/excel?estado=aprobada&formato=carrusel` | Filas listas para el Excel del equipo de diseño ("CONTENT RRSS - SEBAS ARRIETA"): hoja del mes, IDEA DE CONTENIDO, INFORMACIÓN, REFE, MARCA, ARTES, STATUS y FECHA. Después de escribir la fila, Make marca la pieza `enviada_equipo` para no repetirla. |
+| `GET /contenido/excel?carril=agencia` | Carruseles para las diseñadoras (32 al mes), para su Excel "CONTENT RRSS - SEBAS ARRIETA", hoja del mes. Va la materia prima **sin gancho**: ellas proponen el gancho y la idea visual. |
+| `GET /contenido/excel?carril=creador` | Carruseles completos de El Creador para la hoja "CARRUSELES EL CREADOR — doctorarrieta" (Drive `11t0sewhYDO8ve0uc9hOtOx26uxcOTeGl8_NO28bmDYw`): gancho, láminas, copy, fuente y referencia. |
+
+Después de escribir la fila, Make marca la pieza `enviada_equipo` para no repetirla. El campo `carril` permite comparar más adelante qué ganchos rinden más: los de las diseñadoras o los de El Creador.
 | `GET /contenido/resumen` | Conteo por estado |
 
 ### Secretos de este Worker
@@ -53,3 +58,8 @@ Todas con el encabezado `Authorization: Bearer <CONTENIDO_API_KEY>`.
 
 ### Pruebas
 `node test/contenido.test.mjs` (base local, no toca producción).
+
+## A futuro
+
+- Herramientas de diseño que llenan plantillas solas a partir de una fila (Canva, Placid, Bannerbear u otras), para que los carruseles del carril creador salgan diseñados.
+- Cuando haya métricas suficientes: que el sistema elija la ruta de gancho según lo que más rindió.
