@@ -2,7 +2,8 @@
 // y piezas listas (radio, reels, LinkedIn, Threads, X, carruseles, YouTube) con su aprobación.
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
 
-const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "manual", "otro"];
+const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
+const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
 const ESTADOS_IDEA = ["nueva", "verificando", "verificada", "descartada", "en_produccion", "usada"];
 const FORMATOS = ["radio", "reel", "reel_herida", "linkedin", "threads", "x", "carrusel", "youtube", "otro"];
 const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "rechazada", "programada", "publicada"];
@@ -37,9 +38,9 @@ export async function registrarIdea(env, a = {}) {
   }
   const t = now();
   const r = await env.HUB_DB.prepare(
-    "INSERT INTO ideas (creada, actualizada, fuente, enlace, autor, texto, tema, estado, notas) VALUES (?, ?, ?, ?, ?, ?, ?, 'nueva', ?) RETURNING *"
+    "INSERT INTO ideas (creada, actualizada, fuente, enlace, autor, texto, tema, estado, notas, prioridad) VALUES (?, ?, ?, ?, ?, ?, ?, 'nueva', ?, ?) RETURNING *"
   )
-    .bind(t, t, fuente, enlace, clip(a.autor, 200), clip(a.texto, 20000), clip(a.tema, 200), clip(a.notas, 4000))
+    .bind(t, t, fuente, enlace, clip(a.autor, 200), clip(a.texto, 20000), clip(a.tema, 200), clip(a.notas, 4000), check(a.prioridad || "banco", PRIORIDADES, "prioridad"))
     .first();
   return { duplicada: false, idea: ideaOut(r) };
 }
@@ -48,8 +49,9 @@ export async function listarIdeas(env, a = {}) {
   const w = [], b = [];
   if (a.estado) w.push("estado = ?"), b.push(check(a.estado, ESTADOS_IDEA, "estado"));
   if (a.fuente) w.push("fuente = ?"), b.push(check(a.fuente, FUENTES, "fuente"));
+  if (a.prioridad) w.push("prioridad = ?"), b.push(check(a.prioridad, PRIORIDADES, "prioridad"));
   if (a.buscar) w.push("(texto LIKE ? OR tema LIKE ?)"), b.push(`%${a.buscar}%`, `%${a.buscar}%`);
-  const sql = `SELECT id, creada, fuente, enlace, autor, tema, estado, veredicto, substr(texto, 1, 400) AS texto FROM ideas ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY id DESC LIMIT ?`;
+  const sql = `SELECT id, creada, fuente, enlace, autor, tema, estado, prioridad, veredicto, substr(texto, 1, 400) AS texto FROM ideas ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY CASE prioridad WHEN 'grabar_hoy' THEN 0 WHEN 'esta_semana' THEN 1 ELSE 2 END, id DESC LIMIT ?`;
   const { results } = await env.HUB_DB.prepare(sql).bind(...b, lim(a.limite)).all();
   return results;
 }
@@ -65,6 +67,7 @@ export async function actualizarIdea(env, a = {}) {
   const sets = [], b = [];
   if (a.estado != null) sets.push("estado = ?"), b.push(check(a.estado, ESTADOS_IDEA, "estado"));
   if (a.tema != null) sets.push("tema = ?"), b.push(clip(a.tema, 200));
+  if (a.prioridad != null) sets.push("prioridad = ?"), b.push(check(a.prioridad, PRIORIDADES, "prioridad"));
   if (a.veredicto != null) sets.push("veredicto = ?"), b.push(clip(a.veredicto, 4000));
   if (a.estudio != null) sets.push("estudio = ?"), b.push(json(a.estudio));
   if (a.texto != null) sets.push("texto = ?"), b.push(clip(a.texto, 20000));
@@ -130,14 +133,15 @@ export async function actualizarPieza(env, a = {}) {
 }
 
 export async function contenidoResumen(env) {
-  const [i, p] = await Promise.all([
+  const [i, p, hoy] = await Promise.all([
     env.HUB_DB.prepare("SELECT estado, COUNT(*) AS n FROM ideas GROUP BY estado").all(),
     env.HUB_DB.prepare("SELECT formato, estado, COUNT(*) AS n FROM piezas GROUP BY formato, estado").all(),
+    env.HUB_DB.prepare("SELECT id, tema, enlace, creada FROM ideas WHERE prioridad = 'grabar_hoy' AND estado NOT IN ('usada','descartada') ORDER BY id DESC").all(),
   ]);
   const ideas = Object.fromEntries(i.results.map((r) => [r.estado, r.n]));
   const piezas = {};
   for (const r of p.results) (piezas[r.estado] ||= {})[r.formato] = r.n;
-  return { ideas, piezas };
+  return { grabar_hoy: hoy.results, ideas, piezas };
 }
 
 // ---------- Entrada HTTP para Make (llave CONTENIDO_API_KEY) ----------
@@ -197,6 +201,7 @@ export const contenidoTools = [
         texto: { type: "string", description: "Texto, transcripción o resumen del contenido" },
         autor: { type: "string", description: "Cuenta o investigador de origen" },
         tema: { type: "string" },
+        prioridad: { type: "string", enum: PRIORIDADES, description: "grabar_hoy solo para novedad que debe salir hoy sí o sí" },
         notas: { type: "string" },
       },
     },
@@ -204,12 +209,13 @@ export const contenidoTools = [
   },
   {
     name: "contenido_listar_ideas",
-    description: "Lista ideas del banco, las más nuevas primero. Filtra por estado (nueva, verificando, verificada, descartada, en_produccion, usada), fuente o texto.",
+    description: "Lista ideas del banco: primero las de grabar hoy, luego las de esta semana, luego las más nuevas. Filtra por prioridad, estado (nueva, verificando, verificada, descartada, en_produccion, usada), fuente o texto.",
     inputSchema: {
       type: "object",
       properties: {
         estado: { type: "string", enum: ESTADOS_IDEA },
         fuente: { type: "string", enum: FUENTES },
+        prioridad: { type: "string", enum: PRIORIDADES },
         buscar: { type: "string", description: "Palabra a buscar en texto o tema" },
         limite: { type: "number", description: "20 por defecto, tope 200" },
       },
@@ -231,6 +237,7 @@ export const contenidoTools = [
         ...idProp,
         estado: { type: "string", enum: ESTADOS_IDEA },
         tema: { type: "string" },
+        prioridad: { type: "string", enum: PRIORIDADES },
         veredicto: { type: "string" },
         estudio: { type: "object", description: "Datos del estudio verificado" },
         texto: { type: "string" },
@@ -296,7 +303,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_resumen",
-    description: "Tablero rápido: cuántas ideas hay por estado y cuántas piezas por estado y formato.",
+    description: "Tablero rápido: novedades marcadas para grabar hoy, cuántas ideas hay por estado y cuántas piezas por estado y formato.",
     inputSchema: { type: "object", properties: {} },
     run: (env) => contenidoResumen(env),
   },

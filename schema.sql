@@ -7,17 +7,19 @@ CREATE TABLE IF NOT EXISTS ideas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   creada TEXT NOT NULL,
   actualizada TEXT NOT NULL,
-  fuente TEXT NOT NULL,            -- x, instagram, tiktok, blueprint, paper, podcast, manual, otro
+  fuente TEXT NOT NULL,            -- x, instagram, tiktok, blueprint, paper, podcast, noticia, manual, otro
   enlace TEXT UNIQUE,              -- link original (evita duplicados)
   autor TEXT,
   texto TEXT,                      -- texto, transcripción o resumen
   tema TEXT,
   estado TEXT NOT NULL DEFAULT 'nueva', -- nueva, verificando, verificada, descartada, en_produccion, usada
+  prioridad TEXT NOT NULL DEFAULT 'banco', -- banco, esta_semana, grabar_hoy (la novedad)
   veredicto TEXT,                  -- conclusión de la verificación
   estudio TEXT,                    -- JSON con el estudio verificado
   notas TEXT
 );
 CREATE INDEX IF NOT EXISTS ideas_estado ON ideas (estado, id);
+CREATE INDEX IF NOT EXISTS ideas_prioridad ON ideas (prioridad, id);
 
 CREATE TABLE IF NOT EXISTS piezas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

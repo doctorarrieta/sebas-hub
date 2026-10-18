@@ -28,5 +28,9 @@ ok(aprobadas.length === 1 && aprobadas[0].texto === "Post LinkedIn", "Make lee a
 const pub = await (await http("POST", "/contenido/piezas/2", { estado: "publicada", enlace_publicado: "https://linkedin.com/p/9", metricas: { likes: 10 } })).json();
 ok(pub.estado === "publicada" && pub.metricas.likes === 10, "Make marca publicada con métricas");
 ok((await C.verIdea(env, { id: 1 })).idea.estado === "usada", "idea pasa a usada");
+const n = await C.registrarIdea(env, { fuente: "noticia", enlace: "https://fda.gov/recall/1", texto: "Retiro de producto", prioridad: "grabar_hoy" });
+ok(n.idea.prioridad === "grabar_hoy", "novedad con prioridad grabar_hoy");
+ok((await C.listarIdeas(env, {}))[0].id === n.idea.id, "grabar_hoy sale primero en la lista");
+ok((await C.contenidoResumen(env)).grabar_hoy.length === 1, "resumen muestra alerta grabar hoy");
 console.log(JSON.stringify(await C.contenidoResumen(env)));
 await dispose();
