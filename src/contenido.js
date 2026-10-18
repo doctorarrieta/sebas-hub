@@ -5,7 +5,7 @@
 const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
 const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
 const ESTADOS_IDEA = ["nueva", "verificando", "verificada", "descartada", "en_produccion", "usada"];
-const FORMATOS = ["radio", "reel", "reel_herida", "linkedin", "threads", "x", "carrusel", "youtube", "otro"];
+const FORMATOS = ["radio", "reel", "reel_herida", "linkedin", "threads", "facebook", "x", "carrusel", "youtube", "otro"];
 const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "rechazada", "programada", "publicada"];
 
 const now = () => new Date().toISOString();
@@ -249,7 +249,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_registrar_pieza",
-    description: "Guarda una pieza escrita (guion de radio, reel, reel herida abierta, LinkedIn, Threads, X, carrusel, YouTube) ligada a su idea. Queda 'por_aprobar' salvo que se indique otro estado.",
+    description: "Guarda una pieza escrita (guion de radio, reel de 30 s, reel herida abierta, LinkedIn, Threads, Facebook, X, carrusel, YouTube) ligada a su idea. Queda 'por_aprobar' salvo que se indique otro estado.",
     inputSchema: {
       type: "object",
       properties: {

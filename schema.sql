@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS piezas (
   creada TEXT NOT NULL,
   actualizada TEXT NOT NULL,
   idea_id INTEGER REFERENCES ideas(id),
-  formato TEXT NOT NULL,           -- radio, reel, reel_herida, linkedin, threads, x, carrusel, youtube, otro
+  formato TEXT NOT NULL,           -- radio, reel, reel_herida, linkedin, threads, facebook, x, carrusel, youtube, otro
   titulo TEXT,
   gancho TEXT,
   ruta_gancho TEXT,

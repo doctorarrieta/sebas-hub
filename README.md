@@ -30,7 +30,7 @@ Worker y base de datos **separados** del de salud: la salud nunca se mezcla con 
 - **Código:** `src/contenido.js` · **Tablas:** `migrations-contenido/`
 - **Ciclo de una idea:** `nueva → verificando → verificada → en_produccion → usada` (o `descartada`)
 - **Ciclo de una pieza:** `borrador → por_aprobar → aprobada → programada → publicada` (o `rechazada`)
-- **Formatos:** radio, reel, reel_herida, linkedin, threads, x, carrusel, youtube
+- **Formatos:** radio, reel, reel_herida, linkedin, threads, facebook, x, carrusel, youtube
 
 ### Herramientas para Claude
 `contenido_registrar_idea`, `contenido_listar_ideas`, `contenido_ver_idea`, `contenido_actualizar_idea`,
