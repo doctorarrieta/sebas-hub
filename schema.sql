@@ -27,11 +27,12 @@ CREATE TABLE IF NOT EXISTS piezas (
   actualizada TEXT NOT NULL,
   idea_id INTEGER REFERENCES ideas(id),
   formato TEXT NOT NULL,           -- radio, reel, reel_herida, linkedin, threads, facebook, x, carrusel, youtube, otro
+  marca TEXT DEFAULT 'Dr. Arrieta',  -- Dr. Arrieta, Antifrágil, Antirrebote…
   titulo TEXT,
   gancho TEXT,
   ruta_gancho TEXT,
   texto TEXT NOT NULL,
-  estado TEXT NOT NULL DEFAULT 'por_aprobar', -- borrador, por_aprobar, aprobada, rechazada, programada, publicada
+  estado TEXT NOT NULL DEFAULT 'por_aprobar', -- borrador, por_aprobar, aprobada, enviada_equipo, rechazada, programada, publicada
   comentario TEXT,                 -- comentario de aprobación o rechazo
   fecha_publicacion TEXT,
   enlace_publicado TEXT,

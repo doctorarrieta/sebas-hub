@@ -6,7 +6,8 @@ const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "n
 const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
 const ESTADOS_IDEA = ["nueva", "verificando", "verificada", "descartada", "en_produccion", "usada"];
 const FORMATOS = ["radio", "reel", "reel_herida", "linkedin", "threads", "facebook", "x", "carrusel", "youtube", "otro"];
-const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "rechazada", "programada", "publicada"];
+const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "enviada_equipo", "rechazada", "programada", "publicada"];
+const MARCAS = ["Dr. Arrieta", "Antifrágil", "Antifrágil / Dr. Arrieta", "Antirrebote"];
 
 const now = () => new Date().toISOString();
 const clip = (s, n) => (s == null ? null : String(s).slice(0, n));
@@ -91,9 +92,9 @@ export async function registrarPieza(env, a = {}) {
     throw new Error(`No existe la idea ${ideaId}.`);
   const t = now();
   const r = await env.HUB_DB.prepare(
-    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
   )
-    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000))
+    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), clip(a.marca || "Dr. Arrieta", 100))
     .first();
   if (ideaId) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'en_produccion', actualizada = ? WHERE id = ? AND estado IN ('nueva','verificando','verificada')").bind(t, ideaId).run();
   return piezaOut(r);
@@ -105,7 +106,7 @@ export async function listarPiezas(env, a = {}) {
   if (a.formato) w.push("p.formato = ?"), b.push(check(a.formato, FORMATOS, "formato"));
   if (a.idea_id) w.push("p.idea_id = ?"), b.push(Number(a.idea_id));
   const completo = a.completo === true || a.completo === "true" || a.completo === "1";
-  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario,
+  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.marca, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario,
     ${completo ? "p.texto" : "substr(p.texto, 1, 300)"} AS texto, i.enlace AS idea_enlace, i.fuente AS idea_fuente
     FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ?`;
   const { results } = await env.HUB_DB.prepare(sql).bind(...b, lim(a.limite)).all();
@@ -118,6 +119,7 @@ export async function actualizarPieza(env, a = {}) {
   if (a.texto != null) sets.push("texto = ?"), b.push(clip(a.texto, 30000));
   if (a.gancho != null) sets.push("gancho = ?"), b.push(clip(a.gancho, 1000));
   if (a.titulo != null) sets.push("titulo = ?"), b.push(clip(a.titulo, 300));
+  if (a.marca != null) sets.push("marca = ?"), b.push(clip(a.marca, 100));
   if (a.comentario != null) sets.push("comentario = ?"), b.push(clip(a.comentario, 4000));
   if (a.fecha_publicacion != null) sets.push("fecha_publicacion = ?"), b.push(clip(a.fecha_publicacion, 40));
   if (a.enlace_publicado != null) sets.push("enlace_publicado = ?"), b.push(clip(a.enlace_publicado, 1000));
@@ -142,6 +144,35 @@ export async function contenidoResumen(env) {
   const piezas = {};
   for (const r of p.results) (piezas[r.estado] ||= {})[r.formato] = r.n;
   return { grabar_hoy: hoy.results, ideas, piezas };
+}
+
+// ---------- Filas listas para el Excel del equipo de diseño (CONTENT RRSS - SEBAS ARRIETA) ----------
+// Columnas: IDEA DE CONTENIDO | INFORMACIÓN | REFE | MARCA | ARTES | STATUS | ... | FECHA Y HORA
+const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+export async function filasExcel(env, a = {}) {
+  const estado = check(a.estado || "aprobada", ESTADOS_PIEZA, "estado");
+  const formato = check(a.formato || "carrusel", FORMATOS, "formato");
+  const { results } = await env.HUB_DB.prepare(
+    `SELECT p.*, i.enlace AS idea_enlace, i.estudio AS idea_estudio FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id
+     WHERE p.estado = ? AND p.formato = ? ORDER BY p.id LIMIT ?`
+  ).bind(estado, formato, lim(a.limite, 20, 100)).all();
+  const lima = new Date(Date.now() - 5 * 3600e3);
+  return results.map((p) => {
+    const est = parse(p.idea_estudio);
+    const refe = est && typeof est === "object" ? [est.cita, est.enlace].filter(Boolean).join(" ") : est || "";
+    const f = p.fecha_publicacion ? new Date(p.fecha_publicacion) : null;
+    return {
+      pieza_id: p.id,
+      hoja: MESES[(f || lima).getUTCMonth()],
+      idea_de_contenido: [p.gancho, p.texto].filter(Boolean).join("\n\n"),
+      informacion: p.idea_enlace || "",
+      refe,
+      marca: p.marca || "Dr. Arrieta",
+      artes: String(p.titulo || "").toUpperCase(),
+      status: "APROBADO",
+      fecha: f ? `${String(f.getUTCDate()).padStart(2, "0")}/${String(f.getUTCMonth() + 1).padStart(2, "0")}` : "",
+    };
+  });
 }
 
 // ---------- Entrada HTTP para Make (llave CONTENIDO_API_KEY) ----------
@@ -179,6 +210,7 @@ export async function contenidoHttp(req, env, url) {
     if (path === "/contenido/piezas" && req.method === "GET") return Response.json(await listarPiezas(env, { completo: true, ...q }));
     const m = path.match(/^\/contenido\/piezas\/(\d+)$/);
     if (m && req.method === "POST") return Response.json(await actualizarPieza(env, { ...(await body()), id: Number(m[1]) }));
+    if (path === "/contenido/excel" && req.method === "GET") return Response.json(await filasExcel(env, q));
     if (path === "/contenido/resumen" && req.method === "GET") return Response.json(await contenidoResumen(env));
     return Response.json({ error: "Ruta no encontrada" }, { status: 404 });
   } catch (e) {
@@ -249,7 +281,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_registrar_pieza",
-    description: "Guarda una pieza escrita (guion de radio, reel de 30 s, reel herida abierta, LinkedIn, Threads, Facebook, X, carrusel, YouTube) ligada a su idea. Queda 'por_aprobar' salvo que se indique otro estado.",
+    description: "Guarda una pieza escrita (guion de radio, reel de 30 s, reel herida abierta, LinkedIn, Threads, Facebook, X, carrusel, YouTube) ligada a su idea. Queda 'por_aprobar' salvo que se indique otro estado. Para carrusel: titulo = nombre corto del tema para ARTES, gancho = hook, texto = dirección para el equipo de diseño (cómo desarrollar y cómo cerrar).",
     inputSchema: {
       type: "object",
       properties: {
@@ -258,6 +290,7 @@ export const contenidoTools = [
         titulo: { type: "string" },
         gancho: { type: "string" },
         ruta_gancho: { type: "string", description: "shock, comparativa, emocional, polémico, mito vs realidad, cultural…" },
+        marca: { type: "string", description: `Cuenta o marca: ${MARCAS.join(", ")}` },
         texto: { type: "string" },
         estado: { type: "string", enum: ESTADOS_PIEZA },
         notas: { type: "string" },

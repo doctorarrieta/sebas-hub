@@ -32,5 +32,11 @@ const n = await C.registrarIdea(env, { fuente: "noticia", enlace: "https://fda.g
 ok(n.idea.prioridad === "grabar_hoy", "novedad con prioridad grabar_hoy");
 ok((await C.listarIdeas(env, {}))[0].id === n.idea.id, "grabar_hoy sale primero en la lista");
 ok((await C.contenidoResumen(env)).grabar_hoy.length === 1, "resumen muestra alerta grabar hoy");
+await C.actualizarIdea(env, { id: 2, estudio: { cita: "Ma W, et al. Gut 2024", enlace: "https://doi.org/x" } });
+const car = await C.registrarPieza(env, { idea_id: 2, formato: "carrusel", titulo: "Cagar", gancho: "¿Cuántas veces al día?", texto: "Generar curiosidad y cerrar con solución", marca: "Antifrágil / Dr. Arrieta", estado: "aprobada" });
+const filas = await (await http("GET", "/contenido/excel")).json();
+ok(filas.length === 1 && filas[0].artes === "CAGAR" && filas[0].refe.includes("Gut 2024") && filas[0].informacion === "https://tiktok.com/v/2" && filas[0].status === "APROBADO", "fila lista para el Excel de diseño");
+const env2 = await (await http("POST", "/contenido/piezas/" + car.id, { estado: "enviada_equipo", comentario: "Excel OCTUBRE fila 9" })).json();
+ok(env2.estado === "enviada_equipo" && (await (await http("GET", "/contenido/excel")).json()).length === 0, "no se envía dos veces al Excel");
 console.log(JSON.stringify(await C.contenidoResumen(env)));
 await dispose();

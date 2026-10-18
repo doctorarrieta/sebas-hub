@@ -45,6 +45,7 @@ Todas con el encabezado `Authorization: Bearer <CONTENIDO_API_KEY>`.
 | `GET /contenido/ideas?estado=nueva` | Leer ideas |
 | `GET /contenido/piezas?estado=aprobada&formato=linkedin` | Leer piezas aprobadas para publicarlas o pasarlas al equipo |
 | `POST /contenido/piezas/{id}` | Marcar `programada` / `publicada` con `enlace_publicado` y `metricas` |
+| `GET /contenido/excel?estado=aprobada&formato=carrusel` | Filas listas para el Excel del equipo de diseño ("CONTENT RRSS - SEBAS ARRIETA"): hoja del mes, IDEA DE CONTENIDO, INFORMACIÓN, REFE, MARCA, ARTES, STATUS y FECHA. Después de escribir la fila, Make marca la pieza `enviada_equipo` para no repetirla. |
 | `GET /contenido/resumen` | Conteo por estado |
 
 ### Secretos de este Worker
