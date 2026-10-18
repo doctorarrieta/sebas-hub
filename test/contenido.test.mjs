@@ -1,0 +1,32 @@
+import { getPlatformProxy } from "wrangler";
+import { readFileSync } from "node:fs";
+import * as C from "../src/contenido.js";
+const { env, dispose } = await getPlatformProxy({ environment: "contenido", persist: false });
+env.CONTENIDO_API_KEY = "llave-de-prueba";
+for (const stmt of readFileSync("schema.sql", "utf8").split(";").map((s) => s.trim()).filter(Boolean)) await env.HUB_DB.prepare(stmt).run();
+const ok = (c, m) => { if (!c) { console.error("FALLA:", m); process.exitCode = 1; } else console.log("ok -", m); };
+const http = (method, path, body, key = "llave-de-prueba") =>
+  C.contenidoHttp(new Request("https://x" + path, { method, headers: { authorization: "Bearer " + key, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }), env, new URL("https://x" + path));
+
+const r1 = await C.registrarIdea(env, { fuente: "x", enlace: "https://x.com/a/1", texto: "Avena 2 días baja LDL", autor: "@inv" });
+ok(r1.idea.id === 1 && !r1.duplicada, "registrar idea");
+ok((await C.registrarIdea(env, { fuente: "x", enlace: "https://x.com/a/1", texto: "otra" })).duplicada, "no duplica por enlace");
+let bad; try { await C.registrarIdea(env, { fuente: "facebook", texto: "x" }); } catch (e) { bad = e.message; } ok(/fuente inválido/.test(bad), "rechaza fuente inválida");
+const r = await (await http("POST", "/contenido/ideas", [{ fuente: "tiktok", enlace: "https://tiktok.com/v/2", texto: "reel guardado" }, { fuente: "instagram", texto: "sin enlace" }])).json();
+ok(r.resultados.length === 2 && r.resultados[0].idea.id === 2, "Make registra lote de ideas");
+ok((await http("GET", "/contenido/resumen", null, "mala")).status === 401, "Make sin llave = 401");
+const up = await C.actualizarIdea(env, { id: 1, estado: "verificada", veredicto: "Sólido", estudio: { n: 68, diseno: "ECA" } });
+ok(up.estado === "verificada" && up.estudio.n === 68, "verificar idea con estudio");
+const p = await C.registrarPieza(env, { idea_id: 1, formato: "radio", texto: "Guion...", gancho: "Dos días de avena" });
+ok(p.estado === "por_aprobar", "pieza queda por aprobar");
+ok((await C.verIdea(env, { id: 1 })).idea.estado === "en_produccion", "idea pasa a en_produccion");
+await C.registrarPieza(env, { idea_id: 1, formato: "linkedin", texto: "Post LinkedIn" });
+ok((await C.listarPiezas(env, { estado: "por_aprobar" })).length === 2, "listar pendientes de aprobación");
+await C.actualizarPieza(env, { id: 2, estado: "aprobada", comentario: "Va" });
+const aprobadas = await (await http("GET", "/contenido/piezas?estado=aprobada&formato=linkedin")).json();
+ok(aprobadas.length === 1 && aprobadas[0].texto === "Post LinkedIn", "Make lee aprobadas con texto completo");
+const pub = await (await http("POST", "/contenido/piezas/2", { estado: "publicada", enlace_publicado: "https://linkedin.com/p/9", metricas: { likes: 10 } })).json();
+ok(pub.estado === "publicada" && pub.metricas.likes === 10, "Make marca publicada con métricas");
+ok((await C.verIdea(env, { id: 1 })).idea.estado === "usada", "idea pasa a usada");
+console.log(JSON.stringify(await C.contenidoResumen(env)));
+await dispose();

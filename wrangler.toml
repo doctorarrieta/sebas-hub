@@ -25,3 +25,29 @@ id = "67ca95dc11fe46a1ba0dc2061b3617da"
 # Revisión diaria de desvío: 11:30 UTC = 6:30 a. m. en Lima
 [triggers]
 crons = ["30 11 * * *"]
+
+# ===== Espacio "contenido": Worker aparte, base de datos aparte =====
+# Se despliega solo desde GitHub (Cloudflare Workers Builds) con el comando:
+#   npx wrangler deploy --env contenido && npx wrangler d1 migrations apply hub-contenido --remote --env contenido
+# La base y los KV se crean solos en el primer despliegue (por eso no llevan id).
+[env.contenido]
+name = "sebas-contenido"
+workers_dev = true
+
+[env.contenido.vars]
+SPACE = "contenido"
+BASE_URL = "https://sebas-contenido.sebastianarrietam.workers.dev"
+
+[[env.contenido.d1_databases]]
+binding = "HUB_DB"
+database_name = "hub-contenido"
+migrations_dir = "migrations-contenido"
+
+[[env.contenido.kv_namespaces]]
+binding = "HUB_KV"
+
+[[env.contenido.kv_namespaces]]
+binding = "OAUTH_KV"
+
+[env.contenido.triggers]
+crons = []

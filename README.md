@@ -22,6 +22,33 @@ Hub privado de conectores de Dr. Sebastián Arrieta para Claude (servidor MCP en
 Nunca se guardan en este repositorio. Viven solo en Cloudflare:
 `HUB_PASSPHRASE`, `WHOOP_CLIENT_ID`, `WHOOP_CLIENT_SECRET`, `WITHINGS_CLIENT_ID`, `WITHINGS_CLIENT_SECRET`, `APPLE_INGEST_KEY`.
 
-## Siguiente fase
+## Espacio contenido (Worker `sebas-contenido`)
 
-Espacio **contenido**: tablas de ideas y piezas, herramientas para registrar, listar y aprobar, y escenarios de Make.
+Worker y base de datos **separados** del de salud: la salud nunca se mezcla con el contenido.
+
+- **Conector en Claude:** "Contenido Dr. Arrieta" → `https://sebas-contenido.sebastianarrietam.workers.dev/mcp`
+- **Código:** `src/contenido.js` · **Tablas:** `migrations-contenido/`
+- **Ciclo de una idea:** `nueva → verificando → verificada → en_produccion → usada` (o `descartada`)
+- **Ciclo de una pieza:** `borrador → por_aprobar → aprobada → programada → publicada` (o `rechazada`)
+- **Formatos:** radio, reel, reel_herida, linkedin, threads, x, carrusel, youtube
+
+### Herramientas para Claude
+`contenido_registrar_idea`, `contenido_listar_ideas`, `contenido_ver_idea`, `contenido_actualizar_idea`,
+`contenido_registrar_pieza`, `contenido_listar_piezas`, `contenido_actualizar_pieza`, `contenido_resumen`.
+
+### Entradas para Make
+Todas con el encabezado `Authorization: Bearer <CONTENIDO_API_KEY>`.
+
+| Método y ruta | Para qué |
+|---|---|
+| `POST /contenido/ideas` | Registrar una idea o una lista (`fuente`, `enlace`, `texto`, `autor`, `tema`). No duplica enlaces. |
+| `GET /contenido/ideas?estado=nueva` | Leer ideas |
+| `GET /contenido/piezas?estado=aprobada&formato=linkedin` | Leer piezas aprobadas para publicarlas o pasarlas al equipo |
+| `POST /contenido/piezas/{id}` | Marcar `programada` / `publicada` con `enlace_publicado` y `metricas` |
+| `GET /contenido/resumen` | Conteo por estado |
+
+### Secretos de este Worker
+`HUB_PASSPHRASE` (la misma contraseña del hub) y `CONTENIDO_API_KEY` (llave para Make).
+
+### Pruebas
+`node test/contenido.test.mjs` (base local, no toca producción).

@@ -1,12 +1,15 @@
 // Hub de conectores de Sebastián para Claude.
-// Un mismo código, desplegado dos veces: SPACE="salud" y SPACE="ceo".
+// Un mismo código, desplegado por espacios: SPACE="salud", "contenido" (y "ceo" a futuro).
+// Cada espacio es un Worker aparte con su propia base de datos: la salud nunca se mezcla con el contenido.
 import { OAuthProvider, AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-provider";
 import { whoopTools, whoopAuthUrl, whoopExchangeCode, whoopStatus, whoopDeviation } from "./whoop.js";
 import { withingsTools, withingsAuthUrl, withingsExchangeCode, withingsStatus, withingsDaily, withingsActivity } from "./withings.js";
 import { appleTools, appleIngest, appleStatus } from "./apple.js";
+import { contenidoTools, contenidoHttp, contenidoResumen } from "./contenido.js";
 
 const MODULES = {
   salud: { title: "Salud Sebastián", tools: [...whoopTools, ...withingsTools, ...appleTools] },
+  contenido: { title: "Contenido Dr. Arrieta", tools: contenidoTools },
   ceo: { title: "CEO DOCTORARRIETA", tools: [] }, // módulos de empresa: siguiente fase
 };
 
@@ -149,6 +152,7 @@ const defaultHandler = {
     const url = new URL(req.url);
     if (url.pathname === "/authorize") return authorize(req, env);
     if (env.SPACE === "salud" && url.pathname === "/apple/ingest") return appleIngest(req, env);
+    if (env.SPACE === "contenido" && url.pathname.startsWith("/contenido/")) return contenidoHttp(req, env, url);
     const m = url.pathname.match(/^\/(whoop|withings)\/(connect|callback)$/);
     if (env.SPACE === "salud" && m) return m[2] === "connect" ? serviceConnect(req, env, m[1]) : serviceCallback(url, env, m[1]);
     if (url.pathname === "/") return page(MODULES[env.SPACE].title, `<h1>${esc(MODULES[env.SPACE].title)}</h1><p>Hub privado de conectores para Claude.</p>`);
@@ -198,6 +202,10 @@ const hubTools = [
           out.modulos.withings.dias_con_medicion_30d = c.rows ? c.rows.length : null;
           out.modulos.withings.ultimo_dia_actividad = a.rows ? a.rows[a.rows.length - 1] || null : a;
         }
+      }
+      if (env.SPACE === "contenido") {
+        out.modulos.contenido = await contenidoResumen(env).catch((e) => ({ error: e.message }));
+        return out;
       }
       const last = await env.HUB_DB.prepare("SELECT fecha, nivel, json FROM alertas ORDER BY fecha DESC LIMIT 1").first().catch(() => null);
       out.ultima_alerta = last ? { fecha: last.fecha, nivel: last.nivel } : null;
