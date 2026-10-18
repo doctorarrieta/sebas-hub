@@ -1,0 +1,27 @@
+# Configuración del Worker "sebas-salud" (espacio salud).
+# Los secretos NO van aquí: viven solo en Cloudflare (ver README).
+name = "sebas-salud"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+compatibility_flags = ["global_fetch_strictly_public"]
+
+[vars]
+SPACE = "salud"
+BASE_URL = "https://sebas-salud.sebastianarrietam.workers.dev"
+
+[[d1_databases]]
+binding = "HUB_DB"
+database_name = "hub-salud"
+database_id = "4a7e8f6d-e112-4710-a213-c8f24fa20c7a"
+
+[[kv_namespaces]]
+binding = "HUB_KV"
+id = "a7ff1cba585340b09ee069e5b5065924"
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "67ca95dc11fe46a1ba0dc2061b3617da"
+
+# Revisión diaria de desvío: 11:30 UTC = 6:30 a. m. en Lima
+[triggers]
+crons = ["30 11 * * *"]
