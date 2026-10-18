@@ -107,7 +107,7 @@ export async function listarPiezas(env, a = {}) {
   if (a.idea_id) w.push("p.idea_id = ?"), b.push(Number(a.idea_id));
   if (a.carril) w.push("p.carril = ?"), b.push(check(a.carril, CARRILES, "carril"));
   const completo = a.completo === true || a.completo === "true" || a.completo === "1";
-  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario,
+  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario, p.notas,
     ${completo ? "p.texto" : "substr(p.texto, 1, 300)"} AS texto, i.enlace AS idea_enlace, i.fuente AS idea_fuente
     FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ?`;
   const { results } = await env.HUB_DB.prepare(sql).bind(...b, lim(a.limite)).all();

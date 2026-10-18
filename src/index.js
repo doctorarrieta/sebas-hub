@@ -173,7 +173,8 @@ const apiHandler = {
     } catch {
       return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, { status: 400 });
     }
-    const tools = MODULES[env.SPACE].tools.concat(hubTools);
+    // El historial de alertas es solo del espacio salud.
+    const tools = MODULES[env.SPACE].tools.concat(hubTools.filter((t) => env.SPACE === "salud" || t.name !== "hub_historial_alertas"));
     const handleOne = (m) => rpc(m, env, tools);
     if (Array.isArray(msg)) {
       const out = (await Promise.all(msg.map(handleOne))).filter(Boolean);
