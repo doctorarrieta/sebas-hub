@@ -123,6 +123,7 @@ export async function actualizarPieza(env, a = {}) {
   if (a.carril != null) sets.push("carril = ?"), b.push(check(a.carril, CARRILES, "carril"));
   if (a.copy != null) sets.push("copy = ?"), b.push(clip(a.copy, 4000));
   if (a.comentario != null) sets.push("comentario = ?"), b.push(clip(a.comentario, 4000));
+  if (a.notas != null) sets.push("notas = ?"), b.push(clip(a.notas, 4000));
   if (a.fecha_publicacion != null) sets.push("fecha_publicacion = ?"), b.push(clip(a.fecha_publicacion, 40));
   if (a.enlace_publicado != null) sets.push("enlace_publicado = ?"), b.push(clip(a.enlace_publicado, 1000));
   if (a.metricas != null) sets.push("metricas = ?"), b.push(json(a.metricas));
@@ -346,6 +347,7 @@ export const contenidoTools = [
         gancho: { type: "string" },
         titulo: { type: "string" },
         comentario: { type: "string", description: "Comentario de aprobación o rechazo" },
+        notas: { type: "string", description: "Notas de cabina y producción" },
         fecha_publicacion: { type: "string", description: "ISO 8601" },
         enlace_publicado: { type: "string" },
         metricas: { type: "object" },
