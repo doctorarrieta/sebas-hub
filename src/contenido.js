@@ -1,7 +1,7 @@
 // Módulo Contenido: banco de ideas (guardados de X, Instagram, TikTok, Blueprint, papers)
 // y piezas listas (radio, reels, LinkedIn, Threads, X, carruseles, YouTube) con su aprobación.
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
-import { validarParaPublicar, estadoPublicacion, pausarPublicacion, RED } from "./publicar.js";
+import { validarParaPublicar, estadoPublicacion, pausarPublicacion, enlaceConexion, callbackConexion, RED } from "./publicar.js";
 
 const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
 const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
@@ -230,6 +230,9 @@ async function safeEqual(a, b) {
 }
 
 export async function contenidoHttp(req, env, url) {
+  // Regreso de la autorización de Threads o LinkedIn (protegido por el enlace de un solo uso).
+  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin)\/?$/);
+  if (cb && req.method === "GET") return callbackConexion(env, cb[1], url);
   const auth = req.headers.get("authorization") || "";
   const key = auth.startsWith("Bearer ") ? auth.slice(7) : req.headers.get("x-api-key");
   if (!(await safeEqual(key, env.CONTENIDO_API_KEY))) return Response.json({ error: "No autorizado" }, { status: 401 });
@@ -381,9 +384,15 @@ export const contenidoTools = [
   },
   {
     name: "contenido_publicacion_estado",
-    description: "Revisa la publicación automática sin publicar nada: si está en pausa, si los secretos están cargados, qué cuentas tiene conectadas Ayrshare y qué piezas están en cola.",
+    description: "Revisa la publicación automática sin publicar nada: si está en pausa, si X, Threads y LinkedIn están listos, cuántos días le quedan a cada conexión, avisos y qué piezas están en cola.",
     inputSchema: { type: "object", properties: {} },
     run: (env) => estadoPublicacion(env),
+  },
+  {
+    name: "contenido_conectar_red",
+    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte su cuenta de Threads o LinkedIn a la publicación automática. Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
+    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin"] } }, required: ["red"] },
+    run: (env, a) => enlaceConexion(env, a),
   },
   {
     name: "contenido_pausar_publicacion",

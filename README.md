@@ -56,6 +56,21 @@ Después de escribir la fila, Make marca la pieza `enviada_equipo` para no repet
 ### Secretos de este Worker
 `HUB_PASSPHRASE` (la misma contraseña del hub) y `CONTENIDO_API_KEY` (llave para Make).
 
+### Publicación automática (X, Threads, LinkedIn) — `src/publicar.js`
+Directo por la API oficial de cada red, con apps de desarrollador propias. Sin intermediarios.
+
+- **Solo publica lo aprobado y programado:** `aprobada → programada → publicada`. No se puede programar algo que no esté aprobado.
+- **Cron cada 5 minutos** publica lo que ya llegó a su hora.
+- **Nunca publica dos veces:** si una red falla, la pieza vuelve a `aprobada` con el error. Solo reintenta sola cuando la red pide esperar (límite de uso) o cuando falló antes de publicar.
+- **Freno de emergencia:** herramienta `contenido_pausar_publicacion`.
+- **Conectar Threads o LinkedIn:** `contenido_conectar_red` da un enlace de un solo uso (15 min). Los tokens quedan en KV, nunca en el repositorio.
+- **Duración:** Threads se renueva solo. LinkedIn dura 60 días y hay que reconectarlo; `contenido_publicacion_estado` avisa 7 días antes.
+- **Direcciones de retorno:** `https://sebas-contenido.sebastianarrietam.workers.dev/contenido/callback/threads` y `/contenido/callback/linkedin`.
+
+Secretos: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`, `THREADS_APP_ID`, `THREADS_APP_SECRET`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`.
+
+Pruebas: `node test/publicar.test.mjs`.
+
 ### Pruebas
 `node test/contenido.test.mjs` (base local, no toca producción).
 
