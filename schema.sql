@@ -39,7 +39,11 @@ CREATE TABLE IF NOT EXISTS piezas (
   fecha_publicacion TEXT,
   enlace_publicado TEXT,
   metricas TEXT,                   -- JSON
-  notas TEXT
+  notas TEXT,
+  programada_para TEXT,            -- ISO UTC: cuándo se publica sola (solo x, threads, linkedin)
+  publicar_intentos INTEGER NOT NULL DEFAULT 0,
+  publicar_error TEXT,
+  ayrshare_id TEXT
 );
 CREATE INDEX IF NOT EXISTS piezas_estado ON piezas (estado, formato, id);
 CREATE INDEX IF NOT EXISTS piezas_idea ON piezas (idea_id);

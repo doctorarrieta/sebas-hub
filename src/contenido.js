@@ -1,6 +1,7 @@
 // Módulo Contenido: banco de ideas (guardados de X, Instagram, TikTok, Blueprint, papers)
 // y piezas listas (radio, reels, LinkedIn, Threads, X, carruseles, YouTube) con su aprobación.
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
+import { validarParaPublicar, estadoPublicacion, pausarPublicacion, RED } from "./publicar.js";
 
 const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
 const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
@@ -107,7 +108,7 @@ export async function listarPiezas(env, a = {}) {
   if (a.idea_id) w.push("p.idea_id = ?"), b.push(Number(a.idea_id));
   if (a.carril) w.push("p.carril = ?"), b.push(check(a.carril, CARRILES, "carril"));
   const completo = a.completo === true || a.completo === "true" || a.completo === "1";
-  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.comentario, p.notas, p.copy,
+  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.programada_para, p.publicar_error, p.comentario, p.notas, p.copy,
     ${completo ? "p.texto" : "substr(p.texto, 1, 300)"} AS texto, i.enlace AS idea_enlace, i.fuente AS idea_fuente
     FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ?`;
   const { results } = await env.HUB_DB.prepare(sql).bind(...b, lim(a.limite)).all();
@@ -116,6 +117,26 @@ export async function listarPiezas(env, a = {}) {
 
 export async function actualizarPieza(env, a = {}) {
   const sets = [], b = [];
+  // Programar para publicar sola: solo desde "aprobada" (nada sale sin su aprobación) y solo X, Threads o LinkedIn.
+  if (a.estado === "programada" || a.programada_para != null) {
+    const p = await env.HUB_DB.prepare("SELECT * FROM piezas WHERE id = ?").bind(Number(a.id)).first();
+    if (!p) throw new Error(`No existe la pieza ${a.id}.`);
+    const destino = a.estado || p.estado;
+    if (destino === "programada" && RED[p.formato]) {
+      if (!["aprobada", "programada"].includes(p.estado)) throw new Error("Solo se puede programar una pieza aprobada.");
+      validarParaPublicar({ ...p, texto: a.texto ?? p.texto });
+      let cuando = a.programada_para ?? p.programada_para ?? now();
+      const d = new Date(cuando);
+      if (isNaN(d)) throw new Error(`Fecha inválida: ${cuando}`);
+      sets.push("programada_para = ?", "publicar_intentos = 0", "publicar_error = NULL"), b.push(d.toISOString());
+    } else if (a.programada_para != null) {
+      const d = new Date(a.programada_para);
+      if (isNaN(d)) throw new Error(`Fecha inválida: ${a.programada_para}`);
+      sets.push("programada_para = ?"), b.push(d.toISOString());
+    }
+  }
+  // Si sale de la cola (vuelve a aprobada, se rechaza, etc.), se borra la hora programada.
+  if (a.estado != null && !["programada", "publicada"].includes(a.estado) && a.programada_para == null) sets.push("programada_para = NULL");
   if (a.estado != null) sets.push("estado = ?"), b.push(check(a.estado, ESTADOS_PIEZA, "estado"));
   if (a.texto != null) sets.push("texto = ?"), b.push(clip(a.texto, 30000));
   if (a.gancho != null) sets.push("gancho = ?"), b.push(clip(a.gancho, 1000));
@@ -231,6 +252,7 @@ export async function contenidoHttp(req, env, url) {
     const m = path.match(/^\/contenido\/piezas\/(\d+)$/);
     if (m && req.method === "POST") return Response.json(await actualizarPieza(env, { ...(await body()), id: Number(m[1]) }));
     if (path === "/contenido/excel" && req.method === "GET") return Response.json(await filasExcel(env, q));
+    if (path === "/contenido/publicacion" && req.method === "GET") return Response.json(await estadoPublicacion(env));
     if (path === "/contenido/resumen" && req.method === "GET") return Response.json(await contenidoResumen(env));
     return Response.json({ error: "Ruta no encontrada" }, { status: 404 });
   } catch (e) {
@@ -337,7 +359,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_actualizar_pieza",
-    description: "Cambia una pieza: aprobarla o rechazarla (estado + comentario), corregir texto o gancho, o marcarla programada/publicada con fecha, enlace y métricas.",
+    description: "Cambia una pieza: aprobarla o rechazarla (estado + comentario), corregir texto o gancho, o marcarla programada/publicada con fecha, enlace y métricas. Para X, Threads y LinkedIn, estado 'programada' + programada_para hace que se publique SOLA a esa hora: hazlo únicamente cuando Sebastián lo pida explícitamente. Para sacarla de la cola, vuelve a 'aprobada'.",
     inputSchema: {
       type: "object",
       properties: {
@@ -349,12 +371,25 @@ export const contenidoTools = [
         comentario: { type: "string", description: "Comentario de aprobación o rechazo" },
         notas: { type: "string", description: "Notas de cabina y producción" },
         fecha_publicacion: { type: "string", description: "ISO 8601" },
+        programada_para: { type: "string", description: "ISO 8601: cuándo se publica sola (X, Threads, LinkedIn). Con estado 'programada'; sin fecha = en los próximos 5 minutos. Solo desde 'aprobada'." },
         enlace_publicado: { type: "string" },
         metricas: { type: "object" },
       },
       required: ["id"],
     },
     run: (env, a) => actualizarPieza(env, a),
+  },
+  {
+    name: "contenido_publicacion_estado",
+    description: "Revisa la publicación automática sin publicar nada: si está en pausa, si los secretos están cargados, qué cuentas tiene conectadas Ayrshare y qué piezas están en cola.",
+    inputSchema: { type: "object", properties: {} },
+    run: (env) => estadoPublicacion(env),
+  },
+  {
+    name: "contenido_pausar_publicacion",
+    description: "Freno de emergencia: pausa (pausa=true) o reanuda (pausa=false) toda la publicación automática. Las piezas programadas esperan en cola.",
+    inputSchema: { type: "object", properties: { pausa: { type: "boolean" } }, required: ["pausa"] },
+    run: (env, a) => pausarPublicacion(env, a),
   },
   {
     name: "contenido_resumen",

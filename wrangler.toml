@@ -49,5 +49,6 @@ binding = "HUB_KV"
 [[env.contenido.kv_namespaces]]
 binding = "OAUTH_KV"
 
+# Publicación automática (X, Threads, LinkedIn): revisa la cola cada 5 minutos
 [env.contenido.triggers]
-crons = []
+crons = ["*/5 * * * *"]

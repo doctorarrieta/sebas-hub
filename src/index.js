@@ -6,6 +6,7 @@ import { whoopTools, whoopAuthUrl, whoopExchangeCode, whoopStatus, whoopDeviatio
 import { withingsTools, withingsAuthUrl, withingsExchangeCode, withingsStatus, withingsDaily, withingsActivity } from "./withings.js";
 import { appleTools, appleIngest, appleStatus } from "./apple.js";
 import { contenidoTools, contenidoHttp, contenidoResumen } from "./contenido.js";
+import { publicarPendientes } from "./publicar.js";
 
 const MODULES = {
   salud: { title: "Salud Sebastián", tools: [...whoopTools, ...withingsTools, ...appleTools] },
@@ -287,6 +288,11 @@ export default {
   },
   // Revisión diaria automática (cron): guarda el estado de desvío del día.
   async scheduled(event, env, ctx) {
+    if (env.SPACE === "contenido") {
+      const r = await publicarPendientes(env).catch((e) => ({ error: e.message }));
+      if (r.error || r.resultados?.length) console.log("publicar", JSON.stringify(r));
+      return;
+    }
     if (env.SPACE !== "salud") return;
     try {
       const r = await whoopDeviation(env, {});
