@@ -1,6 +1,7 @@
 // Módulo Contenido: banco de ideas (guardados de X, Instagram, TikTok, Blueprint, papers)
 // y piezas listas (radio, reels, LinkedIn, Threads, X, carruseles, YouTube) con su aprobación.
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
+import { metricasInstagram } from "./instagram.js";
 import { validarParaPublicar, estadoPublicacion, pausarPublicacion, enlaceConexion, callbackConexion, RED } from "./publicar.js";
 
 const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
@@ -231,7 +232,7 @@ async function safeEqual(a, b) {
 
 export async function contenidoHttp(req, env, url) {
   // Regreso de la autorización de Threads o LinkedIn (protegido por el enlace de un solo uso).
-  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin)\/?$/);
+  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin|instagram)\/?$/);
   if (cb && req.method === "GET") return callbackConexion(env, cb[1], url);
   const auth = req.headers.get("authorization") || "";
   const key = auth.startsWith("Bearer ") ? auth.slice(7) : req.headers.get("x-api-key");
@@ -390,9 +391,15 @@ export const contenidoTools = [
   },
   {
     name: "contenido_conectar_red",
-    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte su cuenta de Threads o LinkedIn a la publicación automática. Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
-    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin"] } }, required: ["red"] },
+    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática) o una cuenta de Instagram (solo métricas). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
+    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram"] } }, required: ["red"] },
     run: (env, a) => enlaceConexion(env, a),
+  },
+  {
+    name: "contenido_metricas_instagram",
+    description: "Métricas oficiales de las publicaciones recientes de Instagram (solo lectura): vistas, alcance, me gusta, comentarios, compartidos, guardados, tiempo promedio visto de reels, retención a los 3 s (1 − tasa de salto), seguidores. Por cuenta conectada (Dr. Arrieta, Antifrágil, Anti Rebote). La curva completa de retención NO está en la API.",
+    inputSchema: { type: "object", properties: { cuenta: { type: "string", description: "usuario de Instagram sin @; vacío = todas las conectadas" }, limite: { type: "number", description: "publicaciones recientes por cuenta (1-30, por defecto 10)" } } },
+    run: (env, a) => metricasInstagram(env, a),
   },
   {
     name: "contenido_pausar_publicacion",

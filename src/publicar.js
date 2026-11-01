@@ -15,6 +15,8 @@
 //   LinkedIn: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET → token en KV tras conectar (dura 60 días)
 // Freno de emergencia: KV "publicar:pausa" = "1".
 
+import { enlaceInstagram, callbackInstagram, renovarInstagram, estadoInstagram } from "./instagram.js";
+
 export const REDES = ["x", "threads", "linkedin"];
 export const RED = { x: "x", threads: "threads", linkedin: "linkedin" };
 export const LIMITE = { x: 280, threads: 500, linkedin: 3000 };
@@ -195,6 +197,7 @@ export async function pausada(env) {
 // Lo que corre el cron cada 5 minutos.
 export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } = {}) {
   await renovarThreads(env, fetchImpl).catch((e) => console.error("renovar threads", e.message));
+  await renovarInstagram(env, fetchImpl).catch((e) => console.error("renovar instagram", e.message));
   if (await pausada(env)) return { omitido: "Publicación en pausa" };
   const { results } = await env.HUB_DB.prepare(
     `SELECT * FROM piezas WHERE estado = 'programada' AND formato IN ('x','threads','linkedin')
@@ -234,7 +237,8 @@ export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } 
 // Claude genera un enlace de un solo uso (vale 15 minutos); Sebastián lo abre, entra con su cuenta y autoriza.
 export async function enlaceConexion(env, a = {}) {
   const red = a.red;
-  if (!["threads", "linkedin"].includes(red)) throw new Error('red debe ser "threads" o "linkedin" (X se conecta con sus llaves en Cloudflare).');
+  if (red === "instagram") return enlaceInstagram(env);
+  if (!["threads", "linkedin"].includes(red)) throw new Error('red debe ser "threads", "linkedin" o "instagram" (X se conecta con sus llaves en Cloudflare).');
   const state = crypto.randomUUID();
   await env.HUB_KV.put(`oauth:estado:${state}`, red, { expirationTtl: 900 });
   if (red === "threads") {
@@ -255,6 +259,7 @@ const pagina = (titulo, texto, ok = true) =>
 const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 export async function callbackConexion(env, red, url, f = fetch) {
+  if (red === "instagram") return callbackInstagram(env, url, pagina, escHtml, f);
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code");
   const esperado = state && (await env.HUB_KV.get(`oauth:estado:${state}`));
@@ -317,7 +322,9 @@ export async function estadoPublicacion(env) {
   if (!th) avisos.push("Threads: sin conectar.");
   if (!li) avisos.push("LinkedIn: sin conectar.");
   else if (dias(li) <= 7) avisos.push(`LinkedIn: la conexión vence en ${dias(li)} días; hay que reconectar.`);
+  const ig = await estadoInstagram(env);
   return {
+    instagram_metricas: ig,
     pausada: await pausada(env),
     redes: {
       x: { lista: xListo(env) },

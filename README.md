@@ -71,6 +71,12 @@ Secretos: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`, `THR
 
 Pruebas: `node test/publicar.test.mjs`.
 
+### Instagram: métricas (solo lectura) — `src/instagram.js`
+API oficial de Instagram con inicio de sesión de Instagram (`instagram_business_basic`, `instagram_business_manage_insights`). No publica.
+Varias cuentas (Dr. Arrieta, Antifrágil, Anti Rebote): `contenido_conectar_red` con red `instagram`, una cuenta por enlace. Tokens en KV, se renuevan solos.
+Herramienta `contenido_metricas_instagram`: vistas, alcance, interacciones, tiempo promedio de reels y retención a 3 s (1 − `reels_skip_rate`). La curva completa de retención no existe en la API.
+Retorno: `/contenido/callback/instagram`. Secretos: `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`. Pruebas: `node test/instagram.test.mjs`.
+
 ### Pruebas
 `node test/contenido.test.mjs` (base local, no toca producción).
 
