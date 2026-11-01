@@ -42,6 +42,7 @@ ok(/aprobada/.test(await err(() => C.actualizarPieza(env, { id: x.id, estado: "p
 ok(/Muy larga/.test(await err(() => C.actualizarPieza(env, { id: largo.id, estado: "programada" }))), "no programa un X de más de 280");
 const sinRef = await mk("x", "Post sin fuente", "aprobada", true);
 ok(/referencia/.test(await err(() => C.actualizarPieza(env, { id: sinRef.id, estado: "programada" }))), "no programa un post sin referencia con enlace");
+ok((await C.actualizarPieza(env, { id: sinRef.id, referencia: "X, 2026", referencia_url: "https://doi.org/1" })).referencia_url === "https://doi.org/1", "se puede completar la referencia de una pieza");
 await C.actualizarPieza(env, { id: x.id, estado: "aprobada" });
 
 // Conectar Threads y LinkedIn con enlace de un solo uso

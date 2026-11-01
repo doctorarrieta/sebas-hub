@@ -75,8 +75,6 @@ export async function actualizarIdea(env, a = {}) {
   if (a.estudio != null) sets.push("estudio = ?"), b.push(json(a.estudio));
   if (a.texto != null) sets.push("texto = ?"), b.push(clip(a.texto, 20000));
   if (a.notas != null) sets.push("notas = ?"), b.push(clip(a.notas, 4000));
-  if (a.referencia != null) sets.push("referencia = ?"), b.push(clip(a.referencia, 300));
-  if (a.referencia_url != null) sets.push("referencia_url = ?"), b.push(clip(a.referencia_url, 1000));
   if (!sets.length) throw new Error("No hay nada que actualizar.");
   const r = await env.HUB_DB.prepare(`UPDATE ideas SET ${sets.join(", ")}, actualizada = ? WHERE id = ? RETURNING *`)
     .bind(...b, now(), Number(a.id))
@@ -148,6 +146,8 @@ export async function actualizarPieza(env, a = {}) {
   if (a.copy != null) sets.push("copy = ?"), b.push(clip(a.copy, 4000));
   if (a.comentario != null) sets.push("comentario = ?"), b.push(clip(a.comentario, 4000));
   if (a.notas != null) sets.push("notas = ?"), b.push(clip(a.notas, 4000));
+  if (a.referencia != null) sets.push("referencia = ?"), b.push(clip(a.referencia, 300));
+  if (a.referencia_url != null) sets.push("referencia_url = ?"), b.push(clip(a.referencia_url, 1000));
   if (a.fecha_publicacion != null) sets.push("fecha_publicacion = ?"), b.push(clip(a.fecha_publicacion, 40));
   if (a.enlace_publicado != null) sets.push("enlace_publicado = ?"), b.push(clip(a.enlace_publicado, 1000));
   if (a.metricas != null) sets.push("metricas = ?"), b.push(json(a.metricas));
