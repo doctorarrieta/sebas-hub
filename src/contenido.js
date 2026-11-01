@@ -75,6 +75,8 @@ export async function actualizarIdea(env, a = {}) {
   if (a.estudio != null) sets.push("estudio = ?"), b.push(json(a.estudio));
   if (a.texto != null) sets.push("texto = ?"), b.push(clip(a.texto, 20000));
   if (a.notas != null) sets.push("notas = ?"), b.push(clip(a.notas, 4000));
+  if (a.referencia != null) sets.push("referencia = ?"), b.push(clip(a.referencia, 300));
+  if (a.referencia_url != null) sets.push("referencia_url = ?"), b.push(clip(a.referencia_url, 1000));
   if (!sets.length) throw new Error("No hay nada que actualizar.");
   const r = await env.HUB_DB.prepare(`UPDATE ideas SET ${sets.join(", ")}, actualizada = ? WHERE id = ? RETURNING *`)
     .bind(...b, now(), Number(a.id))
@@ -94,9 +96,9 @@ export async function registrarPieza(env, a = {}) {
     throw new Error(`No existe la idea ${ideaId}.`);
   const t = now();
   const r = await env.HUB_DB.prepare(
-    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca, carril, copy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca, carril, copy, referencia, referencia_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
   )
-    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), "Dr. Arrieta", formato === "carrusel" ? check(a.carril || "creador", CARRILES, "carril") : null, clip(a.copy, 4000))
+    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), "Dr. Arrieta", formato === "carrusel" ? check(a.carril || "creador", CARRILES, "carril") : null, clip(a.copy, 4000), clip(a.referencia, 300), clip(a.referencia_url, 1000))
     .first();
   if (ideaId) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'en_produccion', actualizada = ? WHERE id = ? AND estado IN ('nueva','verificando','verificada')").bind(t, ideaId).run();
   return piezaOut(r);
@@ -109,7 +111,7 @@ export async function listarPiezas(env, a = {}) {
   if (a.idea_id) w.push("p.idea_id = ?"), b.push(Number(a.idea_id));
   if (a.carril) w.push("p.carril = ?"), b.push(check(a.carril, CARRILES, "carril"));
   const completo = a.completo === true || a.completo === "true" || a.completo === "1";
-  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.programada_para, p.publicar_error, p.comentario, p.notas, p.copy,
+  const sql = `SELECT p.id, p.creada, p.actualizada, p.idea_id, p.formato, p.carril, p.titulo, p.gancho, p.ruta_gancho, p.estado, p.fecha_publicacion, p.enlace_publicado, p.programada_para, p.publicar_error, p.referencia, p.referencia_url, p.comentario, p.notas, p.copy,
     ${completo ? "p.texto" : "substr(p.texto, 1, 300)"} AS texto, i.enlace AS idea_enlace, i.fuente AS idea_fuente
     FROM piezas p LEFT JOIN ideas i ON i.id = p.idea_id ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY p.id DESC LIMIT ?`;
   const { results } = await env.HUB_DB.prepare(sql).bind(...b, lim(a.limite)).all();
@@ -125,7 +127,7 @@ export async function actualizarPieza(env, a = {}) {
     const destino = a.estado || p.estado;
     if (destino === "programada" && RED[p.formato]) {
       if (!["aprobada", "programada"].includes(p.estado)) throw new Error("Solo se puede programar una pieza aprobada.");
-      validarParaPublicar({ ...p, texto: a.texto ?? p.texto });
+      validarParaPublicar({ ...p, texto: a.texto ?? p.texto, referencia: a.referencia ?? p.referencia, referencia_url: a.referencia_url ?? p.referencia_url });
       let cuando = a.programada_para ?? p.programada_para ?? now();
       const d = new Date(cuando);
       if (isNaN(d)) throw new Error(`Fecha inválida: ${cuando}`);
@@ -340,6 +342,8 @@ export const contenidoTools = [
         copy: { type: "string", description: "Texto de la publicación (caption)" },
         texto: { type: "string" },
         estado: { type: "string", enum: ESTADOS_PIEZA },
+        referencia: { type: "string", description: "OBLIGATORIA en x, threads y linkedin: cita corta del estudio (autores o nombre del estudio y año; la revista solo si es de una universidad o institución de élite). Ej.: 'Estudio RESET for Remission, 2026' o 'Hull et al., 2026'" },
+        referencia_url: { type: "string", description: "OBLIGATORIO en x, threads y linkedin: enlace directo a la fuente primaria (PubMed, DOI o comunicado oficial)" },
         notas: { type: "string" },
       },
       required: ["formato", "texto"],
@@ -373,6 +377,8 @@ export const contenidoTools = [
         gancho: { type: "string" },
         titulo: { type: "string" },
         comentario: { type: "string", description: "Comentario de aprobación o rechazo" },
+        referencia: { type: "string", description: "OBLIGATORIA en x, threads y linkedin: cita corta del estudio (autores o nombre del estudio y año; la revista solo si es de una universidad o institución de élite). Ej.: 'Estudio RESET for Remission, 2026' o 'Hull et al., 2026'" },
+        referencia_url: { type: "string", description: "OBLIGATORIO en x, threads y linkedin: enlace directo a la fuente primaria (PubMed, DOI o comunicado oficial)" },
         notas: { type: "string", description: "Notas de cabina y producción" },
         fecha_publicacion: { type: "string", description: "ISO 8601" },
         programada_para: { type: "string", description: "ISO 8601: cuándo se publica sola (X, Threads, LinkedIn). Con estado 'programada'; sin fecha = en los próximos 5 minutos. Solo desde 'aprobada'." },

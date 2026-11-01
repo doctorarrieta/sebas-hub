@@ -20,7 +20,7 @@ const L = []; let modo = {};
 const R = (j, status = 200, headers = {}) => new Response(JSON.stringify(j), { status, headers: { "content-type": "application/json", ...headers } });
 const fake = async (url, init = {}) => {
   url = String(url); L.push({ url, init });
-  if (url.startsWith("https://api.x.com/2/tweets")) return modo.x === "429" ? R({ title: "Too Many Requests" }, 429) : R({ data: { id: "111", text: "t" } }, 201);
+  if (url.startsWith("https://api.x.com/2/tweets")) { if (modo.x === "429") return R({ title: "Too Many Requests" }, 429); const b = JSON.parse(init.body); if (b.reply && modo.xref === "falla") return R({ detail: "boom" }, 400); return R({ data: { id: b.reply ? "112" : "111", text: "t" } }, 201); }
   if (url.includes("/me/threads_publish")) return modo.th === "500pub" ? R({ error: { message: "boom" } }, 500) : R({ id: "222" });
   if (url.includes("/me/threads")) return R({ id: "C1" });
   if (url.includes("fields=permalink")) return R({ permalink: "https://www.threads.net/@doctorarrieta/post/abc" });
@@ -34,12 +34,14 @@ const fake = async (url, init = {}) => {
 };
 
 const { idea } = await C.registrarIdea(env, { fuente: "x", enlace: "https://x.com/a/1", texto: "idea" });
-const mk = (formato, texto, estado) => C.registrarPieza(env, { idea_id: idea.id, formato, texto, estado });
+const mk = (formato, texto, estado, sinRef) => C.registrarPieza(env, { idea_id: idea.id, formato, texto, estado, ...(sinRef ? {} : { referencia: "Estudio RESET, 2026", referencia_url: "https://pubmed.ncbi.nlm.nih.gov/1/" }) });
 const x = await mk("x", "Post corto para X"), th = await mk("threads", "Post para Threads", "aprobada"), li = await mk("linkedin", "Post (LinkedIn) #salud", "aprobada");
 const largo = await mk("x", "a".repeat(281), "aprobada");
 
 ok(/aprobada/.test(await err(() => C.actualizarPieza(env, { id: x.id, estado: "programada" }))), "no programa lo que no está aprobado");
 ok(/Muy larga/.test(await err(() => C.actualizarPieza(env, { id: largo.id, estado: "programada" }))), "no programa un X de más de 280");
+const sinRef = await mk("x", "Post sin fuente", "aprobada", true);
+ok(/referencia/.test(await err(() => C.actualizarPieza(env, { id: sinRef.id, estado: "programada" }))), "no programa un post sin referencia con enlace");
 await C.actualizarPieza(env, { id: x.id, estado: "aprobada" });
 
 // Conectar Threads y LinkedIn con enlace de un solo uso
@@ -67,12 +69,17 @@ const r = await P.publicarPendientes(env, { fetchImpl: fake });
 ok(r.resultados.length === 2 && r.resultados.every((z) => z.publicada), "publica X y Threads; LinkedIn espera su hora");
 const tx = L.find((l) => l.url === "https://api.x.com/2/tweets");
 ok(tx.init.headers.Authorization.startsWith("OAuth ") && JSON.parse(tx.init.body).text === "Post corto para X", "X firmado y con el texto exacto");
+const rx = L.filter((l) => l.url === "https://api.x.com/2/tweets").map((l) => JSON.parse(l.init.body)).find((b) => b.reply);
+ok(rx && rx.reply.in_reply_to_tweet_id === "111" && rx.text === "Referencia: Estudio RESET, 2026\nhttps://pubmed.ncbi.nlm.nih.gov/1/", "X: referencia con enlace como respuesta debajo del post");
+const rth = L.find((l) => l.url.includes("/me/threads") && !l.url.includes("publish") && String(l.init.body).includes("reply_to_id"));
+ok(!!rth, "Threads: referencia como respuesta");
+ok((await fila(x.id)).ref_id === "112", "guarda el id de la respuesta con la referencia");
 ok((await fila(x.id)).enlace_publicado === "https://x.com/i/web/status/111" && (await fila(th.id)).enlace_publicado.includes("threads.net"), "guarda enlaces publicados");
 ok((await P.publicarPendientes(env, { fetchImpl: fake })).resultados.length === 0, "no publica dos veces");
 await env.HUB_DB.prepare("UPDATE piezas SET programada_para = ? WHERE id = ?").bind(new Date(Date.now() - 1000).toISOString(), li.id).run();
 await P.publicarPendientes(env, { fetchImpl: fake });
 const pl = L.find((l) => l.url.includes("/rest/posts"));
-ok(JSON.parse(pl.init.body).commentary === "Post \\(LinkedIn\\) \\#salud" && JSON.parse(pl.init.body).author === "urn:li:person:abc123", "LinkedIn con texto escapado y autor correcto");
+ok(JSON.parse(pl.init.body).commentary.startsWith("Post \\(LinkedIn\\) \\#salud\n\nReferencia: Estudio RESET, 2026") && JSON.parse(pl.init.body).author === "urn:li:person:abc123", "LinkedIn: texto escapado con la referencia al final");
 ok((await fila(li.id)).enlace_publicado === "https://www.linkedin.com/feed/update/urn:li:share:333/", "enlace de LinkedIn");
 
 // Fallas
@@ -87,6 +94,17 @@ modo.th = "500pub";
 await P.publicarPendientes(env, { fetchImpl: fake });
 const f2 = await fila(t2.id);
 ok(f2.estado === "aprobada" && /pudo haber salido/.test(f2.comentario), "si hay duda de que salió, no reintenta y avisa");
+
+// Si falla la referencia: el post queda publicado, avisa y reintenta
+modo.th = undefined; modo.x = undefined; modo.xref = "falla";
+const x3 = await mk("x", "Tercer post", "aprobada"); await C.actualizarPieza(env, { id: x3.id, estado: "programada" });
+await P.publicarPendientes(env, { fetchImpl: fake });
+let f3 = await fila(x3.id);
+ok(f3.estado === "publicada" && f3.ref_id === null && /falta la referencia/.test(f3.publicar_error), "post publicado; avisa que falta la referencia");
+modo.xref = undefined;
+await P.publicarPendientes(env, { fetchImpl: fake });
+f3 = await fila(x3.id);
+ok(f3.ref_id === "112" && f3.publicar_error === null, "reintenta la referencia en el siguiente ciclo");
 
 // Renovación automática de Threads
 const tok = JSON.parse(await env.HUB_KV.get("red:threads"));

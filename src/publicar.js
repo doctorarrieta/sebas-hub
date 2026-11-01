@@ -39,12 +39,24 @@ export function largo(formato, texto) {
   return [...t.replace(/https?:\/\/\S+/g, "x".repeat(23))].reduce((n, ch) => n + (ch.codePointAt(0) > 0x2fff ? 2 : 1), 0);
 }
 
+// Regla de Sebastián: todo post lleva su referencia bibliográfica con enlace.
+// X y Threads: va como respuesta inmediata debajo del post (el post queda limpio y no pierde alcance por el enlace).
+// LinkedIn: va al final del mismo post.
+export function textoReferencia(p) {
+  const ref = String(p.referencia || "").trim(), url = String(p.referencia_url || "").trim();
+  if (!ref || !/^https?:\/\/\S+$/.test(url)) throw new Error("Falta la referencia bibliográfica con su enlace (campos referencia y referencia_url). Ningún post sale sin ella.");
+  return `Referencia: ${ref}\n${url}`;
+}
+
 export function validarParaPublicar(p) {
   if (!RED[p.formato]) throw new Error(`Solo se publica sola en X, Threads y LinkedIn (esta pieza es ${p.formato}).`);
-  const texto = String(p.texto || "").trim();
+  let texto = String(p.texto || "").trim();
   if (!texto) throw new Error("La pieza no tiene texto para publicar.");
+  const ref = textoReferencia(p);
+  if (p.formato === "linkedin") texto = `${texto}\n\n${ref}`;
   const n = largo(p.formato, texto);
   if (n > LIMITE[p.formato]) throw new Error(`Muy larga para ${p.formato}: ${n} caracteres (máximo ${LIMITE[p.formato]}).`);
+  if (p.formato !== "linkedin" && largo(p.formato, ref) > LIMITE[p.formato]) throw new Error(`La referencia es muy larga para ${p.formato}: acórtala.`);
   return texto;
 }
 
@@ -99,12 +111,12 @@ async function cabeceraOAuth1(env, method, url) {
 
 const xListo = (env) => !!(env.X_API_KEY && env.X_API_SECRET && env.X_ACCESS_TOKEN && env.X_ACCESS_SECRET);
 
-async function publicarX(env, texto, f) {
+async function publicarX(env, texto, f, responderA) {
   if (!xListo(env)) throw new ErrorRed("x: faltan las llaves de X en Cloudflare.");
   const url = "https://api.x.com/2/tweets";
   let res;
   try {
-    res = await f(url, { method: "POST", headers: { Authorization: await cabeceraOAuth1(env, "POST", url), "Content-Type": "application/json" }, body: JSON.stringify({ text: texto }) });
+    res = await f(url, { method: "POST", headers: { Authorization: await cabeceraOAuth1(env, "POST", url), "Content-Type": "application/json" }, body: JSON.stringify(responderA ? { text: texto, reply: { in_reply_to_tweet_id: responderA } } : { text: texto }) });
   } catch (e) {
     throw new ErrorRed(`x: sin respuesta (${e.message})`, { dudoso: true });
   }
@@ -116,7 +128,7 @@ async function publicarX(env, texto, f) {
 // ---------- Threads (API oficial de Meta) ----------
 const TH = "https://graph.threads.net";
 
-async function publicarThreads(env, texto, f) {
+async function publicarThreads(env, texto, f, responderA) {
   const t = await leerToken(env, "threads");
   if (!t?.access_token) throw new ErrorRed("threads: falta conectar la cuenta (contenido_conectar_red).");
   if (t.expira && Date.parse(t.expira) < Date.now()) throw new ErrorRed("threads: la conexión venció; vuelve a conectar.");
@@ -124,7 +136,7 @@ async function publicarThreads(env, texto, f) {
   // 1) contenedor (aún no se publica nada)
   let res;
   try {
-    res = await f(`${TH}/v1.0/me/threads`, { method: "POST", body: form({ media_type: "TEXT", text: texto }) });
+    res = await f(`${TH}/v1.0/me/threads`, { method: "POST", body: form(responderA ? { media_type: "TEXT", text: texto, reply_to_id: responderA } : { media_type: "TEXT", text: texto }) });
   } catch (e) {
     throw new ErrorRed(`threads: sin respuesta (${e.message})`, { reintentable: true });
   }
@@ -199,6 +211,7 @@ export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } 
   await renovarThreads(env, fetchImpl).catch((e) => console.error("renovar threads", e.message));
   await renovarInstagram(env, fetchImpl).catch((e) => console.error("renovar instagram", e.message));
   if (await pausada(env)) return { omitido: "Publicación en pausa" };
+  await reintentarReferencias(env, fetchImpl).catch((e) => console.error("referencias", e.message));
   const { results } = await env.HUB_DB.prepare(
     `SELECT * FROM piezas WHERE estado = 'programada' AND formato IN ('x','threads','linkedin')
        AND programada_para IS NOT NULL AND programada_para <= ? AND publicar_intentos < ?
@@ -219,7 +232,8 @@ export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } 
         "UPDATE piezas SET estado = 'publicada', fecha_publicacion = ?, enlace_publicado = ?, red_id = ?, publicar_error = NULL, actualizada = ? WHERE id = ?"
       ).bind(t, r.url, r.id, t, p.id).run();
       if (p.idea_id) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'usada', actualizada = ? WHERE id = ?").bind(t, p.idea_id).run();
-      out.push({ id: p.id, formato: p.formato, publicada: true, enlace: r.url });
+      const ref = p.formato === "linkedin" ? { ok: true } : await responderReferencia(env, { ...p, red_id: r.id }, fetchImpl);
+      out.push({ id: p.id, formato: p.formato, publicada: true, enlace: r.url, referencia: ref.ok ? "publicada" : `pendiente: ${ref.error}` });
     } catch (e) {
       const intentos = p.publicar_intentos + 1;
       const devolver = !e.reintentable || intentos >= MAX_INTENTOS;
@@ -231,6 +245,32 @@ export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } 
     }
   }
   return { revisadas: results.length, resultados: out };
+}
+
+// La referencia como respuesta debajo del post (X y Threads). Si falla, se reintenta en los siguientes ciclos (máx. 3),
+// salvo que haya duda de si salió: entonces se avisa y no se reintenta, para no duplicarla.
+async function responderReferencia(env, p, f) {
+  const intentos = (p.ref_intentos || 0) + 1;
+  try {
+    const r = await PUBLICAR[p.formato](env, textoReferencia(p), f, p.red_id);
+    await env.HUB_DB.prepare("UPDATE piezas SET ref_id = ?, ref_intentos = ?, publicar_error = NULL, actualizada = ? WHERE id = ?").bind(r.id, intentos, now(), p.id).run();
+    return { ok: true };
+  } catch (e) {
+    const fin = e.dudoso || intentos >= MAX_INTENTOS;
+    const msg = `Publicado, pero falta la referencia debajo: ${e.message}${e.dudoso ? " (pudo haber salido; revisa el post)" : fin ? " (agrégala a mano)" : " (se reintenta sola)"}`;
+    await env.HUB_DB.prepare("UPDATE piezas SET ref_intentos = ?, publicar_error = ?, actualizada = ? WHERE id = ?").bind(fin ? MAX_INTENTOS : intentos, msg.slice(0, 1000), now(), p.id).run();
+    return { ok: false, error: e.message };
+  }
+}
+
+// Reintenta referencias que fallaron al publicar (solo piezas publicadas por este sistema con un intento fallido).
+async function reintentarReferencias(env, f) {
+  const { results } = await env.HUB_DB.prepare(
+    `SELECT * FROM piezas WHERE estado = 'publicada' AND formato IN ('x','threads') AND red_id IS NOT NULL AND ref_id IS NULL
+       AND ref_intentos > 0 AND ref_intentos < ? LIMIT 3`
+  ).bind(MAX_INTENTOS).all();
+  for (const p of results) await responderReferencia(env, p, f);
+  return results.length;
 }
 
 // ---------- Conexión de cuentas (OAuth) ----------
