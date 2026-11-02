@@ -51,3 +51,13 @@ CREATE TABLE IF NOT EXISTS piezas (
 );
 CREATE INDEX IF NOT EXISTS piezas_estado ON piezas (estado, formato, id);
 CREATE INDEX IF NOT EXISTS piezas_idea ON piezas (idea_id);
+
+CREATE TABLE IF NOT EXISTS rendimiento (
+  coleccion TEXT NOT NULL,
+  id TEXT NOT NULL,
+  fecha TEXT,
+  datos TEXT NOT NULL,
+  actualizada TEXT NOT NULL,
+  PRIMARY KEY (coleccion, id)
+);
+CREATE INDEX IF NOT EXISTS rendimiento_fecha ON rendimiento (coleccion, fecha);

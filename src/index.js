@@ -7,6 +7,7 @@ import { withingsTools, withingsAuthUrl, withingsExchangeCode, withingsStatus, w
 import { appleTools, appleIngest, appleStatus } from "./apple.js";
 import { contenidoTools, contenidoHttp, contenidoResumen } from "./contenido.js";
 import { publicarPendientes } from "./publicar.js";
+import { equipoHttp } from "./equipo.js";
 
 const MODULES = {
   salud: { title: "Salud Sebastián", tools: [...whoopTools, ...withingsTools, ...appleTools] },
@@ -154,6 +155,7 @@ const defaultHandler = {
     if (url.pathname === "/authorize") return authorize(req, env);
     if (env.SPACE === "salud" && url.pathname === "/apple/ingest") return appleIngest(req, env);
     if (env.SPACE === "contenido" && url.pathname.startsWith("/contenido/")) return contenidoHttp(req, env, url);
+    if (env.SPACE === "contenido" && url.pathname.startsWith("/equipo/")) return equipoHttp(req, env, url);
     const m = url.pathname.match(/^\/(whoop|withings)\/(connect|callback)$/);
     if (env.SPACE === "salud" && m) return m[2] === "connect" ? serviceConnect(req, env, m[1]) : serviceCallback(url, env, m[1]);
     if (url.pathname === "/") return page(MODULES[env.SPACE].title, `<h1>${esc(MODULES[env.SPACE].title)}</h1><p>Hub privado de conectores para Claude.</p>`);

@@ -2,6 +2,7 @@
 // y piezas listas (radio, reels, LinkedIn, Threads, X, carruseles, YouTube) con su aprobación.
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
 import { metricasInstagram } from "./instagram.js";
+import { guardarRendimiento, enlaceEquipo } from "./equipo.js";
 import { validarParaPublicar, estadoPublicacion, pausarPublicacion, enlaceConexion, callbackConexion, RED } from "./publicar.js";
 
 const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
@@ -412,6 +413,27 @@ export const contenidoTools = [
     description: "Freno de emergencia: pausa (pausa=true) o reanuda (pausa=false) toda la publicación automática. Las piezas programadas esperan en cola.",
     inputSchema: { type: "object", properties: { pausa: { type: "boolean" } }, required: ["pausa"] },
     run: (env, a) => pausarPublicacion(env, a),
+  },
+  {
+    name: "contenido_guardar_rendimiento",
+    description: "Guarda el análisis de retención para el Tablero del equipo (página pública de solo lectura). items: hasta 50 elementos {coleccion: 'videos'|'dias'|'aprendizajes', id, datos}. Mismos campos que el Centro de contenido: videos {fecha, cuenta, red, formato, tema, enlace, duracion_s, vistas, tiempo_prom_s, pct_visto, retencion_inicial, caida_s, caida_frase, diagnostico, recomendacion, curva:[[s,fraccion]], revisado}; dias {fecha, revisados, recomendaciones:[...], funciono, se_fue, falta}; aprendizajes {patron, cuenta_red, veces, estado, evidencia}. Si el id ya existe, lo reemplaza.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { type: "object", properties: { coleccion: { type: "string", enum: ["videos", "dias", "aprendizajes"] }, id: { type: "string" }, datos: { type: "object" } }, required: ["coleccion", "id", "datos"] },
+        },
+      },
+      required: ["items"],
+    },
+    run: (env, a) => guardarRendimiento(env, a),
+  },
+  {
+    name: "contenido_enlace_equipo",
+    description: "Da el enlace del Tablero del equipo (se abre sin cuenta, solo lectura). renovar=true crea uno nuevo y anula el anterior (si se filtró).",
+    inputSchema: { type: "object", properties: { renovar: { type: "boolean" } } },
+    run: (env, a) => enlaceEquipo(env, a),
   },
   {
     name: "contenido_resumen",

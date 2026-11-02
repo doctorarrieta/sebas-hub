@@ -84,3 +84,7 @@ Retorno: `/contenido/callback/instagram`. Secretos: `INSTAGRAM_APP_ID`, `INSTAGR
 
 - Herramientas de diseño que llenan plantillas solas a partir de una fila (Canva, Placid, Bannerbear u otras), para que los carruseles del carril creador salgan diseñados.
 - Cuando haya métricas suficientes: que el sistema elija la ruta de gancho según lo que más rindió.
+
+### Tablero del equipo (público, solo lectura) — `src/equipo.js`
+Página para Yazaida, Gabriel, Rubén y editores: resumen, curvas de retención, recomendaciones diarias y aprendizajes. Se abre con un enlace secreto (`/equipo/<código>`), sin cuenta ni contraseña; no permite aprobar ni publicar. Datos en la tabla `rendimiento` (los guarda la revisión diaria con `contenido_guardar_rendimiento`). `contenido_enlace_equipo` da el enlace; con `renovar: true` crea uno nuevo y anula el anterior.
+La página se edita en `src/equipo.html` y luego se ejecuta `node scripts/pagina-equipo.mjs`. Pruebas: `node test/equipo.test.mjs`.
