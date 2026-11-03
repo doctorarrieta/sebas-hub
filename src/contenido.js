@@ -2,6 +2,7 @@
 // y piezas listas (radio, reels, LinkedIn, Threads, X, carruseles, YouTube) con su aprobación.
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
 import { metricasInstagram } from "./instagram.js";
+import { metricasTikTok } from "./tiktok.js";
 import { guardarRendimiento, enlaceEquipo } from "./equipo.js";
 import { validarParaPublicar, estadoPublicacion, pausarPublicacion, enlaceConexion, callbackConexion, RED } from "./publicar.js";
 
@@ -235,7 +236,7 @@ async function safeEqual(a, b) {
 
 export async function contenidoHttp(req, env, url) {
   // Regreso de la autorización de Threads o LinkedIn (protegido por el enlace de un solo uso).
-  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin|instagram)\/?$/);
+  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin|instagram|tiktok)\/?$/);
   if (cb && req.method === "GET") return callbackConexion(env, cb[1], url);
   const auth = req.headers.get("authorization") || "";
   const key = auth.startsWith("Bearer ") ? auth.slice(7) : req.headers.get("x-api-key");
@@ -398,8 +399,8 @@ export const contenidoTools = [
   },
   {
     name: "contenido_conectar_red",
-    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática), o con red 'instagram' su Facebook: conecta a la vez la página de Facebook (publicación automática) y sus cuentas de Instagram vinculadas (solo métricas). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
-    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram"] } }, required: ["red"] },
+    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática), o con red 'instagram' su Facebook: conecta a la vez la página de Facebook (publicación automática) y sus cuentas de Instagram vinculadas (solo métricas); con red 'tiktok', una cuenta de TikTok por enlace (solo métricas). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
+    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram", "tiktok"] } }, required: ["red"] },
     run: (env, a) => enlaceConexion(env, a),
   },
   {
@@ -407,6 +408,12 @@ export const contenidoTools = [
     description: "Métricas oficiales de las publicaciones recientes de Instagram (solo lectura): vistas, alcance, me gusta, comentarios, compartidos, guardados, tiempo promedio visto de reels, retención a los 3 s (1 − tasa de salto), seguidores. Por cuenta conectada (Dr. Arrieta, Antifrágil, Anti Rebote). La curva completa de retención NO está en la API.",
     inputSchema: { type: "object", properties: { cuenta: { type: "string", description: "usuario de Instagram sin @; vacío = todas las conectadas" }, limite: { type: "number", description: "publicaciones recientes por cuenta (1-30, por defecto 10)" } } },
     run: (env, a) => metricasInstagram(env, a),
+  },
+  {
+    name: "contenido_metricas_tiktok",
+    description: "Métricas oficiales de los videos recientes de TikTok (solo lectura, cuenta de creador): vistas, me gusta, cantidad de comentarios, compartidos, duración, seguidores. Por cuenta conectada (Dr. Arrieta, Antifrágil, Anti Rebote). NO trae tiempo promedio, retención ni el texto de los comentarios.",
+    inputSchema: { type: "object", properties: { cuenta: { type: "string", description: "usuario de TikTok sin @; vacío = todas las conectadas" }, limite: { type: "number", description: "videos recientes por cuenta (1-20, por defecto 10)" } } },
+    run: (env, a) => metricasTikTok(env, a),
   },
   {
     name: "contenido_pausar_publicacion",

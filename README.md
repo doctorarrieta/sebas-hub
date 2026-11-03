@@ -78,6 +78,10 @@ App propia "Contenido Dr Arrieta" (ID 1118070657790166) con Facebook Login for B
 - Instagram: `contenido_metricas_instagram` (solo lectura): vistas, alcance, interacciones, tiempo promedio de reels y retención a 3 s (1 − `reels_skip_rate` cuando está disponible).
 Retorno: `/contenido/callback/instagram`. Secretos: `META_APP_ID`, `META_APP_SECRET`. Pruebas: `node test/instagram.test.mjs`.
 
+### TikTok: métricas (solo lectura) — `src/tiktok.js`
+API de TikTok for Developers (Login Kit + Display API), funciona con cuenta de creador. `contenido_conectar_red` con red `tiktok` (una cuenta por enlace) y `contenido_metricas_tiktok`: vistas, me gusta, cantidad de comentarios, compartidos. No da tiempo promedio ni texto de comentarios (eso requiere cuenta de empresa + API for Business). Token de 24 h renovado solo por el cron (refresh de 365 días).
+Retorno: `/contenido/callback/tiktok`. Secretos: `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`. Pruebas: `node test/tiktok.test.mjs`.
+
 ### Pruebas
 `node test/contenido.test.mjs` (base local, no toca producción).
 
