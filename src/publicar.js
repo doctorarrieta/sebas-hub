@@ -290,7 +290,7 @@ export async function enlaceConexion(env, a = {}) {
   await env.HUB_KV.put(`oauth:estado:${state}`, red, { expirationTtl: 900 });
   if (red === "threads") {
     if (!env.THREADS_APP_ID) throw new Error("Falta THREADS_APP_ID en Cloudflare.");
-    const q = new URLSearchParams({ client_id: env.THREADS_APP_ID, redirect_uri: callbackUrl(env, red), scope: "threads_basic,threads_content_publish", response_type: "code", state });
+    const q = new URLSearchParams({ client_id: env.THREADS_APP_ID, redirect_uri: callbackUrl(env, red), scope: "threads_basic,threads_content_publish,threads_manage_replies,threads_read_replies,threads_manage_insights", response_type: "code", state });
     return { red, enlace: `https://threads.net/oauth/authorize?${q}`, vence_en_minutos: 15 };
   }
   if (!env.LINKEDIN_CLIENT_ID) throw new Error("Falta LINKEDIN_CLIENT_ID en Cloudflare.");
