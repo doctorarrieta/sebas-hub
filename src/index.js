@@ -1,6 +1,7 @@
 // Hub de conectores de Sebastián para Claude.
 // Un mismo código, desplegado por espacios: SPACE="salud", "contenido" (y "ceo" a futuro).
 // Cada espacio es un Worker aparte con su propia base de datos: la salud nunca se mezcla con el contenido.
+import { legalHttp } from "./legal.js";
 import { OAuthProvider, AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-provider";
 import { whoopTools, whoopAuthUrl, whoopExchangeCode, whoopStatus, whoopDeviation } from "./whoop.js";
 import { withingsTools, withingsAuthUrl, withingsExchangeCode, withingsStatus, withingsDaily, withingsActivity } from "./withings.js";
@@ -155,6 +156,7 @@ const defaultHandler = {
     if (url.pathname === "/authorize") return authorize(req, env);
     if (env.SPACE === "salud" && url.pathname === "/apple/ingest") return appleIngest(req, env);
     if (env.SPACE === "contenido" && url.pathname.startsWith("/contenido/")) return contenidoHttp(req, env, url);
+    if (url.pathname.startsWith("/legal/")) return legalHttp(url);
     if (env.SPACE === "contenido" && url.pathname.startsWith("/equipo/")) return equipoHttp(req, env, url);
     const m = url.pathname.match(/^\/(whoop|withings)\/(connect|callback)$/);
     if (env.SPACE === "salud" && m) return m[2] === "connect" ? serviceConnect(req, env, m[1]) : serviceCallback(url, env, m[1]);
