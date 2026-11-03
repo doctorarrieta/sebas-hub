@@ -3,6 +3,7 @@
 // Claude escribe y lee por MCP. Make escribe y lee por /contenido/* con la llave CONTENIDO_API_KEY.
 import { metricasInstagram } from "./instagram.js";
 import { metricasTikTok } from "./tiktok.js";
+import { metricasYouTube, retencionYouTube } from "./youtube.js";
 import { guardarRendimiento, enlaceEquipo } from "./equipo.js";
 import { validarParaPublicar, estadoPublicacion, pausarPublicacion, enlaceConexion, callbackConexion, RED } from "./publicar.js";
 
@@ -236,7 +237,7 @@ async function safeEqual(a, b) {
 
 export async function contenidoHttp(req, env, url) {
   // Regreso de la autorización de Threads o LinkedIn (protegido por el enlace de un solo uso).
-  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin|instagram|tiktok)\/?$/);
+  const cb = url.pathname.match(/^\/contenido\/callback\/(threads|linkedin|instagram|tiktok|youtube)\/?$/);
   if (cb && req.method === "GET") return callbackConexion(env, cb[1], url);
   const auth = req.headers.get("authorization") || "";
   const key = auth.startsWith("Bearer ") ? auth.slice(7) : req.headers.get("x-api-key");
@@ -399,8 +400,8 @@ export const contenidoTools = [
   },
   {
     name: "contenido_conectar_red",
-    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática), o con red 'instagram' su Facebook: conecta a la vez la página de Facebook (publicación automática) y sus cuentas de Instagram vinculadas (solo métricas); con red 'tiktok', una cuenta de TikTok por enlace (solo métricas). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
-    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram", "tiktok"] } }, required: ["red"] },
+    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática), o con red 'instagram' su Facebook: conecta a la vez la página de Facebook (publicación automática) y sus cuentas de Instagram vinculadas (solo métricas); con red 'tiktok', una cuenta de TikTok por enlace (solo métricas); con red 'youtube', un canal por enlace (solo métricas y curva de retención). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
+    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram", "tiktok", "youtube"] } }, required: ["red"] },
     run: (env, a) => enlaceConexion(env, a),
   },
   {
@@ -414,6 +415,18 @@ export const contenidoTools = [
     description: "Métricas oficiales de los videos recientes de TikTok (solo lectura, cuenta de creador): vistas, me gusta, cantidad de comentarios, compartidos, duración, seguidores. Por cuenta conectada (Dr. Arrieta, Antifrágil, Anti Rebote). NO trae tiempo promedio, retención ni el texto de los comentarios.",
     inputSchema: { type: "object", properties: { cuenta: { type: "string", description: "usuario de TikTok sin @; vacío = todas las conectadas" }, limite: { type: "number", description: "videos recientes por cuenta (1-20, por defecto 10)" } } },
     run: (env, a) => metricasTikTok(env, a),
+  },
+  {
+    name: "contenido_metricas_youtube",
+    description: "Métricas oficiales de los videos recientes de YouTube (solo lectura) por canal conectado (Dr. Arrieta, Antifrágil): vistas, me gusta, comentarios, minutos vistos, tiempo promedio visto, % promedio visto, suscriptores ganados, compartidos. Con curva=true agrega la curva de retención de cada video (100 puntos).",
+    inputSchema: { type: "object", properties: { canal: { type: "string", description: "nombre, @usuario o id del canal; vacío = todos" }, limite: { type: "number", description: "videos recientes por canal (1-25, por defecto 10)" }, curva: { type: "boolean", description: "true para incluir la curva de retención de cada video" } } },
+    run: (env, a) => metricasYouTube(env, a),
+  },
+  {
+    name: "contenido_retencion_youtube",
+    description: "Curva completa de retención de UN video de YouTube: en cada punto, el segundo, la fracción de espectadores que sigue viendo y cómo se compara con videos similares de YouTube (1 = igual, >1 = mejor). Sirve para cruzar las caídas con el guion o el .srt.",
+    inputSchema: { type: "object", properties: { video: { type: "string", description: "enlace o id del video" }, canal: { type: "string" } }, required: ["video"] },
+    run: (env, a) => retencionYouTube(env, a),
   },
   {
     name: "contenido_pausar_publicacion",

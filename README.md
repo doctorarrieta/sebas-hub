@@ -82,6 +82,10 @@ Retorno: `/contenido/callback/instagram`. Secretos: `META_APP_ID`, `META_APP_SEC
 API de TikTok for Developers (Login Kit + Display API), funciona con cuenta de creador. `contenido_conectar_red` con red `tiktok` (una cuenta por enlace) y `contenido_metricas_tiktok`: vistas, me gusta, cantidad de comentarios, compartidos. No da tiempo promedio ni texto de comentarios (eso requiere cuenta de empresa + API for Business). Token de 24 h renovado solo por el cron (refresh de 365 días).
 Retorno: `/contenido/callback/tiktok`. Secretos: `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`. Pruebas: `node test/tiktok.test.mjs`.
 
+### YouTube: métricas y curva de retención (solo lectura) — `src/youtube.js`
+Proyecto de Google Cloud `contenido-dr-arrieta` (YouTube Data API v3 + YouTube Analytics API). `contenido_conectar_red` con red `youtube` (un canal por enlace), `contenido_metricas_youtube` (vistas, tiempo promedio, % visto, suscriptores ganados; `curva=true` agrega la curva) y `contenido_retencion_youtube` (curva completa de un video con segundos y comparación con videos similares).
+Retorno: `/contenido/callback/youtube`. Secretos: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`. Pruebas: `node test/youtube.test.mjs`.
+
 ### Pruebas
 `node test/contenido.test.mjs` (base local, no toca producción).
 
