@@ -1,4 +1,4 @@
-// Publicación automática en X, Threads y LinkedIn, DIRECTO por la API oficial de cada red,
+// Publicación automática en X, Threads, LinkedIn y la página de Facebook, DIRECTO por la API oficial de cada red,
 // con apps de desarrollador propias de Sebastián (sin intermediarios).
 //
 // Regla de oro: solo se publica lo que Sebastián aprobó y luego programó.
@@ -13,13 +13,15 @@
 //   X:        X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET  (OAuth 1.0a de su propia cuenta)
 //   Threads:  THREADS_APP_ID, THREADS_APP_SECRET   → token en KV tras conectar (se renueva solo)
 //   LinkedIn: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET → token en KV tras conectar (dura 60 días)
+//   Facebook: META_APP_ID, META_APP_SECRET → token de página en KV tras conectar (no vence; ver instagram.js)
 // Freno de emergencia: KV "publicar:pausa" = "1".
 
-import { enlaceInstagram, callbackInstagram, renovarInstagram, estadoInstagram } from "./instagram.js";
+import { enlaceInstagram, callbackInstagram, renovarInstagram, estadoInstagram, publicarFacebook } from "./instagram.js";
 
-export const REDES = ["x", "threads", "linkedin"];
-export const RED = { x: "x", threads: "threads", linkedin: "linkedin" };
-export const LIMITE = { x: 280, threads: 500, linkedin: 3000 };
+export const REDES = ["x", "threads", "linkedin", "facebook"];
+export const RED = { x: "x", threads: "threads", linkedin: "linkedin", facebook: "facebook" };
+export const LIMITE = { x: 280, threads: 500, linkedin: 3000, facebook: 5000 };
+const REF_AL_FINAL = new Set(["linkedin", "facebook"]);
 const MAX_INTENTOS = 3;
 const DIA = 86400e3;
 const now = () => new Date().toISOString();
@@ -41,7 +43,7 @@ export function largo(formato, texto) {
 
 // Regla de Sebastián: todo post lleva su referencia bibliográfica con enlace.
 // X y Threads: va como respuesta inmediata debajo del post (el post queda limpio y no pierde alcance por el enlace).
-// LinkedIn: va al final del mismo post.
+// LinkedIn y Facebook: va al final del mismo post.
 export function textoReferencia(p) {
   const ref = String(p.referencia || "").trim(), url = String(p.referencia_url || "").trim();
   if (!ref || !/^https?:\/\/\S+$/.test(url)) throw new Error("Falta la referencia bibliográfica con su enlace (campos referencia y referencia_url). Ningún post sale sin ella.");
@@ -49,14 +51,14 @@ export function textoReferencia(p) {
 }
 
 export function validarParaPublicar(p) {
-  if (!RED[p.formato]) throw new Error(`Solo se publica sola en X, Threads y LinkedIn (esta pieza es ${p.formato}).`);
+  if (!RED[p.formato]) throw new Error(`Solo se publica sola en X, Threads, LinkedIn y Facebook (esta pieza es ${p.formato}).`);
   let texto = String(p.texto || "").trim();
   if (!texto) throw new Error("La pieza no tiene texto para publicar.");
   const ref = textoReferencia(p);
-  if (p.formato === "linkedin") texto = `${texto}\n\n${ref}`;
+  if (REF_AL_FINAL.has(p.formato)) texto = `${texto}\n\n${ref}`;
   const n = largo(p.formato, texto);
   if (n > LIMITE[p.formato]) throw new Error(`Muy larga para ${p.formato}: ${n} caracteres (máximo ${LIMITE[p.formato]}).`);
-  if (p.formato !== "linkedin" && largo(p.formato, ref) > LIMITE[p.formato]) throw new Error(`La referencia es muy larga para ${p.formato}: acórtala.`);
+  if (!REF_AL_FINAL.has(p.formato) && largo(p.formato, ref) > LIMITE[p.formato]) throw new Error(`La referencia es muy larga para ${p.formato}: acórtala.`);
   return texto;
 }
 
@@ -200,7 +202,7 @@ async function publicarLinkedIn(env, texto, f) {
   return { id: urn, url: urn ? `https://www.linkedin.com/feed/update/${urn}/` : null };
 }
 
-const PUBLICAR = { x: publicarX, threads: publicarThreads, linkedin: publicarLinkedIn };
+const PUBLICAR = { x: publicarX, threads: publicarThreads, linkedin: publicarLinkedIn, facebook: publicarFacebook };
 
 export async function pausada(env) {
   return (await env.HUB_KV.get("publicar:pausa")) === "1";
@@ -213,7 +215,7 @@ export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } 
   if (await pausada(env)) return { omitido: "Publicación en pausa" };
   await reintentarReferencias(env, fetchImpl).catch((e) => console.error("referencias", e.message));
   const { results } = await env.HUB_DB.prepare(
-    `SELECT * FROM piezas WHERE estado = 'programada' AND formato IN ('x','threads','linkedin')
+    `SELECT * FROM piezas WHERE estado = 'programada' AND formato IN ('x','threads','linkedin','facebook')
        AND programada_para IS NOT NULL AND programada_para <= ? AND publicar_intentos < ?
      ORDER BY programada_para LIMIT ?`
   ).bind(now(), MAX_INTENTOS, limite).all();
@@ -232,7 +234,7 @@ export async function publicarPendientes(env, { fetchImpl = fetch, limite = 3 } 
         "UPDATE piezas SET estado = 'publicada', fecha_publicacion = ?, enlace_publicado = ?, red_id = ?, publicar_error = NULL, actualizada = ? WHERE id = ?"
       ).bind(t, r.url, r.id, t, p.id).run();
       if (p.idea_id) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'usada', actualizada = ? WHERE id = ?").bind(t, p.idea_id).run();
-      const ref = p.formato === "linkedin" ? { ok: true } : await responderReferencia(env, { ...p, red_id: r.id }, fetchImpl);
+      const ref = REF_AL_FINAL.has(p.formato) ? { ok: true } : await responderReferencia(env, { ...p, red_id: r.id }, fetchImpl);
       out.push({ id: p.id, formato: p.formato, publicada: true, enlace: r.url, referencia: ref.ok ? "publicada" : `pendiente: ${ref.error}` });
     } catch (e) {
       const intentos = p.publicar_intentos + 1;
@@ -355,7 +357,7 @@ export async function estadoPublicacion(env) {
   const dias = (t) => (t?.expira ? Math.floor((Date.parse(t.expira) - Date.now()) / DIA) : null);
   const [th, li] = await Promise.all([leerToken(env, "threads"), leerToken(env, "linkedin")]);
   const { results } = await env.HUB_DB.prepare(
-    "SELECT id, formato, titulo, programada_para, publicar_intentos, publicar_error FROM piezas WHERE estado = 'programada' AND formato IN ('x','threads','linkedin') ORDER BY programada_para LIMIT 50"
+    "SELECT id, formato, titulo, programada_para, publicar_intentos, publicar_error FROM piezas WHERE estado = 'programada' AND formato IN ('x','threads','linkedin','facebook') ORDER BY programada_para LIMIT 50"
   ).all();
   const avisos = [];
   if (!xListo(env)) avisos.push("X: faltan llaves en Cloudflare (X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET).");
@@ -363,8 +365,9 @@ export async function estadoPublicacion(env) {
   if (!li) avisos.push("LinkedIn: sin conectar.");
   else if (dias(li) <= 7) avisos.push(`LinkedIn: la conexión vence en ${dias(li)} días; hay que reconectar.`);
   const ig = await estadoInstagram(env);
+  if (!ig.paginas_facebook.length) avisos.push("Facebook e Instagram: sin conectar.");
   return {
-    instagram_metricas: ig,
+    meta: ig,
     pausada: await pausada(env),
     redes: {
       x: { lista: xListo(env) },

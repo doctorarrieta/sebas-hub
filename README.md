@@ -71,11 +71,12 @@ Secretos: `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`, `THR
 
 Pruebas: `node test/publicar.test.mjs`.
 
-### Instagram: métricas (solo lectura) — `src/instagram.js`
-API oficial de Instagram con inicio de sesión de Instagram (`instagram_business_basic`, `instagram_business_manage_insights`). No publica.
-Varias cuentas (Dr. Arrieta, Antifrágil, Anti Rebote): `contenido_conectar_red` con red `instagram`, una cuenta por enlace. Tokens en KV, se renuevan solos.
-Herramienta `contenido_metricas_instagram`: vistas, alcance, interacciones, tiempo promedio de reels y retención a 3 s (1 − `reels_skip_rate`). La curva completa de retención no existe en la API.
-Retorno: `/contenido/callback/instagram`. Secretos: `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`. Pruebas: `node test/instagram.test.mjs`.
+### Facebook + Instagram (Meta) — `src/instagram.js`
+App propia "Contenido Dr Arrieta" (ID 1118070657790166) con Facebook Login for Business (configuración de token de usuario 1649486460107140).
+`contenido_conectar_red` con red `instagram`: un enlace conecta a la vez las páginas de Facebook elegidas y sus Instagram vinculados. Los tokens de página no vencen.
+- Facebook: publica en la página (formato `facebook`, mismo flujo que X: aprobada → programada → publicada; la referencia va al final). `META_PAGINA_ID` opcional para elegir la página.
+- Instagram: `contenido_metricas_instagram` (solo lectura): vistas, alcance, interacciones, tiempo promedio de reels y retención a 3 s (1 − `reels_skip_rate` cuando está disponible).
+Retorno: `/contenido/callback/instagram`. Secretos: `META_APP_ID`, `META_APP_SECRET`. Pruebas: `node test/instagram.test.mjs`.
 
 ### Pruebas
 `node test/contenido.test.mjs` (base local, no toca producción).

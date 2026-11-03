@@ -113,5 +113,5 @@ await env.HUB_KV.put("red:threads", JSON.stringify({ ...tok, expira: new Date(Da
 await P.renovarThreads(env, fake);
 ok(JSON.parse(await env.HUB_KV.get("red:threads")).access_token === "renovado", "Threads se renueva solo antes de vencer");
 const est = await P.estadoPublicacion(env);
-ok(est.redes.x.lista && est.redes.threads.conectada && est.redes.linkedin.dias_restantes >= 59 && est.avisos.length === 0, "estado de publicación sin avisos");
+ok(est.redes.x.lista && est.redes.threads.conectada && est.redes.linkedin.dias_restantes >= 59 && est.avisos.length === 1 && /Facebook/.test(est.avisos[0]), "estado: solo avisa que falta conectar Facebook");
 await dispose();
