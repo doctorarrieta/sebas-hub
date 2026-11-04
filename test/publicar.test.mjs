@@ -20,6 +20,7 @@ const L = []; let modo = {};
 const R = (j, status = 200, headers = {}) => new Response(JSON.stringify(j), { status, headers: { "content-type": "application/json", ...headers } });
 const fake = async (url, init = {}) => {
   url = String(url); L.push({ url, init });
+  if (url === "https://api.x.com/2/users/me") return /oauth_token="t"/.test(init.headers.Authorization) ? R({ data: { username: "doctorarrietam" } }) : R({ title: "Unauthorized" }, 401);
   if (url.startsWith("https://api.x.com/2/tweets")) { if (modo.x === "429") return R({ title: "Too Many Requests" }, 429); const b = JSON.parse(init.body); if (b.reply && modo.xref === "falla") return R({ detail: "boom" }, 400); return R({ data: { id: b.reply ? "112" : "111", text: "t" } }, 201); }
   if (url.includes("/me/threads_publish")) return modo.th === "500pub" ? R({ error: { message: "boom" } }, 500) : R({ id: "222" });
   if (url.includes("/me/threads")) return R({ id: "C1" });
@@ -112,6 +113,10 @@ const tok = JSON.parse(await env.HUB_KV.get("red:threads"));
 await env.HUB_KV.put("red:threads", JSON.stringify({ ...tok, expira: new Date(Date.now() + 10 * 86400e3).toISOString(), conectada: new Date(Date.now() - 50 * 86400e3).toISOString() }));
 await P.renovarThreads(env, fake);
 ok(JSON.parse(await env.HUB_KV.get("red:threads")).access_token === "renovado", "Threads se renueva solo antes de vencer");
-const est = await P.estadoPublicacion(env);
+const est = await P.estadoPublicacion(env, fake);
+ok(est.redes.x.verificacion.ok && est.redes.x.verificacion.cuenta === "@doctorarrietam", "verifica las llaves de X sin publicar");
+env.X_ACCESS_TOKEN = "t \n";
+const v2 = await P.verificarX(env, fake, { forzar: true });
+ok(v2.ok && v2.llaves_con_espacios?.[0] === "X_ACCESS_TOKEN", "limpia espacios pegados de más y avisa cuál llave los tenía");
 ok(est.redes.x.lista && est.redes.threads.conectada && est.redes.linkedin.dias_restantes >= 59 && est.avisos.length === 1 && /Facebook/.test(est.avisos[0]), "estado: solo avisa que falta conectar Facebook");
 await dispose();

@@ -100,20 +100,48 @@ export async function firmaOAuth1({ method, url, params, consumerSecret, tokenSe
   return btoa(String.fromCharCode(...sig));
 }
 
+// Las llaves se limpian de espacios y saltos de línea: al copiarlas del portal de X a veces se pegan con un espacio al final.
+const xk = (env, k) => String(env[k] || "").trim();
+
 async function cabeceraOAuth1(env, method, url) {
   const o = {
-    oauth_consumer_key: env.X_API_KEY,
+    oauth_consumer_key: xk(env, "X_API_KEY"),
     oauth_nonce: crypto.randomUUID().replace(/-/g, ""),
     oauth_signature_method: "HMAC-SHA1",
     oauth_timestamp: String(Math.floor(Date.now() / 1000)),
-    oauth_token: env.X_ACCESS_TOKEN,
+    oauth_token: xk(env, "X_ACCESS_TOKEN"),
     oauth_version: "1.0",
   };
-  o.oauth_signature = await firmaOAuth1({ method, url, params: o, consumerSecret: env.X_API_SECRET, tokenSecret: env.X_ACCESS_SECRET });
+  o.oauth_signature = await firmaOAuth1({ method, url, params: o, consumerSecret: xk(env, "X_API_SECRET"), tokenSecret: xk(env, "X_ACCESS_SECRET") });
   return "OAuth " + Object.keys(o).sort().map((k) => `${enc(k)}="${enc(o[k])}"`).join(", ");
 }
 
-const xListo = (env) => !!(env.X_API_KEY && env.X_API_SECRET && env.X_ACCESS_TOKEN && env.X_ACCESS_SECRET);
+const X_LLAVES = ["X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET"];
+const xListo = (env) => X_LLAVES.every((k) => xk(env, k));
+
+// Revisa las llaves de X sin publicar: pregunta "¿quién soy?" (como máximo cada 10 minutos).
+// Nunca muestra las llaves: solo si alguna tenía espacios de más y qué cuenta responde.
+export async function verificarX(env, f = fetch, { forzar = false } = {}) {
+  if (!xListo(env)) return { ok: false, error: "faltan llaves" };
+  const cache = !forzar && (await env.HUB_KV.get("x:verificacion"));
+  if (cache) return JSON.parse(cache);
+  const espacios = X_LLAVES.filter((k) => String(env[k] || "") !== xk(env, k));
+  const url = "https://api.x.com/2/users/me";
+  let out;
+  try {
+    const res = await f(url, { headers: { Authorization: await cabeceraOAuth1(env, "GET", url) } });
+    const j = await leerJson(res);
+    out = res.ok && j?.data?.username
+      ? { ok: true, cuenta: "@" + j.data.username }
+      : { ok: false, error: `${res.status} ${j?.title || ""} ${j?.detail || ""}`.trim() };
+  } catch (e) {
+    out = { ok: false, error: `sin respuesta (${e.message})` };
+  }
+  if (espacios.length) out.llaves_con_espacios = espacios;
+  out.revisado = now();
+  await env.HUB_KV.put("x:verificacion", JSON.stringify(out), { expirationTtl: 600 });
+  return out;
+}
 
 async function publicarX(env, texto, f, responderA) {
   if (!xListo(env)) throw new ErrorRed("x: faltan las llaves de X en Cloudflare.");
@@ -360,7 +388,7 @@ export async function renovarThreads(env, f = fetch) {
 }
 
 // Para revisar que todo está conectado sin publicar nada.
-export async function estadoPublicacion(env) {
+export async function estadoPublicacion(env, f = fetch) {
   const dias = (t) => (t?.expira ? Math.floor((Date.parse(t.expira) - Date.now()) / DIA) : null);
   const [th, li] = await Promise.all([leerToken(env, "threads"), leerToken(env, "linkedin")]);
   const { results } = await env.HUB_DB.prepare(
@@ -379,7 +407,7 @@ export async function estadoPublicacion(env) {
     youtube_metricas: await estadoYouTube(env),
     pausada: await pausada(env),
     redes: {
-      x: { lista: xListo(env) },
+      x: { lista: xListo(env), verificacion: await verificarX(env, f) },
       threads: { configurada: !!(env.THREADS_APP_ID && env.THREADS_APP_SECRET), conectada: !!th, usuario: th?.usuario || null, dias_restantes: dias(th), se_renueva_sola: true },
       linkedin: { configurada: !!(env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET), conectada: !!li, usuario: li?.usuario || null, dias_restantes: dias(li), se_renueva_sola: false },
     },
