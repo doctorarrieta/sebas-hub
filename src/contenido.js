@@ -119,6 +119,42 @@ export async function listarPiezas(env, a = {}) {
   return results;
 }
 
+// ---------- Orden de la cola: un post por día por red ----------
+// Programar es sucesivo: cada red (X, Threads, LinkedIn, Facebook) tiene como máximo un post por día (hora de Lima).
+// "Publicar ahora" (en los próximos 15 minutos) no se bloquea. Si sacas un post de la cola, ese día queda libre
+// y es el primero que se ofrece (rellena huecos).
+const INMEDIATO = 15 * 60e3;
+const LIMA = -5 * 3600e3; // Perú no cambia de hora
+export const diaLima = (t) => new Date(new Date(t).getTime() + LIMA).toISOString().slice(0, 10);
+const sumarDia = (dia, n = 1) => new Date(Date.parse(dia + "T12:00:00Z") + n * 86400e3).toISOString().slice(0, 10);
+const NOMBRE_RED = { x: "X", threads: "Threads", linkedin: "LinkedIn", facebook: "Facebook" };
+const diaTexto = (dia) => new Date(dia + "T17:00:00Z").toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Lima" });
+
+export async function diasOcupados(env, formato, excepto = 0) {
+  const desde = new Date(Date.now() - 2 * 86400e3).toISOString();
+  const { results } = await env.HUB_DB.prepare(
+    `SELECT estado, programada_para, fecha_publicacion FROM piezas WHERE formato = ? AND id != ?
+       AND ((estado = 'programada' AND programada_para IS NOT NULL) OR (estado = 'publicada' AND fecha_publicacion >= ?))`
+  ).bind(formato, Number(excepto) || 0, desde).all();
+  return new Set(results.map((r) => diaLima(r.estado === "publicada" ? r.fecha_publicacion : r.programada_para)));
+}
+
+export function siguienteLibre(ocupados, desde) {
+  let d = desde;
+  while (ocupados.has(d)) d = sumarDia(d);
+  return d;
+}
+
+async function verificarDiaLibre(env, p, d) {
+  if (d.getTime() <= Date.now() + INMEDIATO) return; // publicar ahora
+  const ocupados = await diasOcupados(env, p.formato, p.id);
+  const dia = diaLima(d);
+  if (!ocupados.has(dia)) return;
+  const libre = siguienteLibre(ocupados, dia);
+  const red = NOMBRE_RED[p.formato] || p.formato;
+  throw new Error(`${red} ya tiene un post el ${diaTexto(dia)}. Va uno por día por red: el siguiente día libre es el ${diaTexto(libre)}.`);
+}
+
 export async function actualizarPieza(env, a = {}) {
   const sets = [], b = [];
   // Programar para publicar sola: solo desde "aprobada" (nada sale sin su aprobación) y solo X, Threads o LinkedIn.
@@ -132,6 +168,7 @@ export async function actualizarPieza(env, a = {}) {
       let cuando = a.programada_para ?? p.programada_para ?? now();
       const d = new Date(cuando);
       if (isNaN(d)) throw new Error(`Fecha inválida: ${cuando}`);
+      await verificarDiaLibre(env, p, d);
       sets.push("programada_para = ?", "publicar_intentos = 0", "publicar_error = NULL"), b.push(d.toISOString());
     } else if (a.programada_para != null) {
       const d = new Date(a.programada_para);
@@ -370,7 +407,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_actualizar_pieza",
-    description: "Cambia una pieza: aprobarla o rechazarla (estado + comentario), corregir texto o gancho, o marcarla programada/publicada con fecha, enlace y métricas. Para X, Threads, LinkedIn y Facebook (página), estado 'programada' + programada_para hace que se publique SOLA a esa hora: hazlo únicamente cuando Sebastián lo pida explícitamente. Para sacarla de la cola, vuelve a 'aprobada'.",
+    description: "Cambia una pieza: aprobarla o rechazarla (estado + comentario), corregir texto o gancho, o marcarla programada/publicada con fecha, enlace y métricas. Para X, Threads, LinkedIn y Facebook (página), estado 'programada' + programada_para hace que se publique SOLA a esa hora: hazlo únicamente cuando Sebastián lo pida explícitamente. Máximo un post por día por red (hora de Lima): si el día está ocupado, se rechaza y el error dice el siguiente día libre; publicar ya (sin fecha) no se bloquea. Para sacarla de la cola, vuelve a 'aprobada'.",
     inputSchema: {
       type: "object",
       properties: {

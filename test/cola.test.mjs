@@ -1,0 +1,24 @@
+import { getPlatformProxy } from "wrangler";
+import { readFileSync } from "node:fs";
+import * as C from "../src/contenido.js";
+const { env, dispose } = await getPlatformProxy({ environment: "contenido", persist: false });
+for (const stmt of readFileSync("schema.sql", "utf8").split(";").map((s) => s.trim()).filter(Boolean)) await env.HUB_DB.prepare(stmt).run();
+const ok = (c, m) => { if (!c) { console.error("FALLA:", m); process.exitCode = 1; } else console.log("ok -", m); };
+const err = async (f) => { try { await f(); return null; } catch (e) { return e.message; } };
+const idea = await C.registrarIdea(env, { fuente: "manual", texto: "cola" });
+const mk = (formato, n) => C.registrarPieza(env, { idea_id: idea.id, formato, texto: "Post " + n, estado: "aprobada", referencia: "Estudio, 2026", referencia_url: "https://pubmed.ncbi.nlm.nih.gov/1/" });
+// Mañana y pasado a las 9:00 de Lima (14:00 UTC)
+const dia = (n, h = 14) => { const d = new Date(Date.now() + n * 86400e3); d.setUTCHours(h, 0, 0, 0); return d.toISOString(); };
+const [a, b, c, t, z] = [await mk("x", 1), await mk("x", 2), await mk("x", 3), await mk("threads", 4), await mk("x", 5)];
+await C.actualizarPieza(env, { id: a.id, estado: "programada", programada_para: dia(2) });
+const e1 = await err(() => C.actualizarPieza(env, { id: b.id, estado: "programada", programada_para: dia(2, 22) }));
+ok(/ya tiene un post/.test(e1 || "") && /siguiente día libre/.test(e1), "X: no deja dos posts el mismo día y dice el siguiente libre");
+ok(!(await err(() => C.actualizarPieza(env, { id: t.id, estado: "programada", programada_para: dia(2) }))), "Threads tiene su propia cola: el mismo día sí");
+await C.actualizarPieza(env, { id: b.id, estado: "programada", programada_para: dia(3) });
+await C.actualizarPieza(env, { id: c.id, estado: "programada", programada_para: dia(4) });
+await C.actualizarPieza(env, { id: b.id, estado: "aprobada" });
+const occ = await C.diasOcupados(env, "x");
+ok(C.siguienteLibre(occ, C.diaLima(dia(2))) === C.diaLima(dia(3)), "al sacar uno de la cola, su día queda libre (rellena el hueco)");
+ok(!(await err(() => C.actualizarPieza(env, { id: z.id, estado: "programada" }))), "publicar ahora nunca se bloquea");
+ok(!(await err(() => C.actualizarPieza(env, { id: a.id, estado: "programada", programada_para: dia(2, 20) }))), "cambiar la hora de un post en su mismo día está permitido");
+await dispose();
