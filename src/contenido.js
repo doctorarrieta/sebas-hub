@@ -443,8 +443,8 @@ export const contenidoTools = [
   },
   {
     name: "contenido_metricas_instagram",
-    description: "Métricas oficiales de las publicaciones recientes de Instagram (solo lectura): vistas, alcance, me gusta, comentarios, compartidos, guardados, tiempo promedio visto de reels, retención a los 3 s (1 − tasa de salto), seguidores. Por cuenta conectada (Dr. Arrieta, Antifrágil, Anti Rebote). La curva completa de retención NO está en la API.",
-    inputSchema: { type: "object", properties: { cuenta: { type: "string", description: "usuario de Instagram sin @; vacío = todas las conectadas" }, limite: { type: "number", description: "publicaciones recientes por cuenta (1-30, por defecto 10)" } } },
+    description: "Métricas oficiales de las publicaciones recientes de Instagram (solo lectura): vistas, alcance, me gusta, comentarios, compartidos, guardados, tiempo promedio visto de reels, retención a los 3 s (1 − tasa de salto), seguidores, y la AUDIENCIA (edad, género, país y ciudad de quienes te siguen y de quienes interactúan este mes, en grupos agregados; se actualiza cada 12 h). Por cuenta conectada (Dr. Arrieta, Antifrágil, Anti Rebote). La curva completa de retención NO está en la API.",
+    inputSchema: { type: "object", properties: { cuenta: { type: "string", description: "usuario de Instagram sin @; vacío = todas las conectadas" }, limite: { type: "number", description: "publicaciones recientes por cuenta (1-30, por defecto 10)" }, audiencia: { type: "boolean", description: "false para omitir la audiencia" } } },
     run: (env, a) => metricasInstagram(env, a),
   },
   {

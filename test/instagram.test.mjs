@@ -20,6 +20,10 @@ const fake = async (url, init = {}) => {
   if (url.includes("/1/insights") && url.includes("reels_skip_rate")) return R({ error: { message: "metric not supported" } }, 400);
   if (url.includes("/1/insights")) return R({ data: [{ name: "views", values: [{ value: 48500 }] }, { name: "ig_reels_avg_watch_time", values: [{ value: 11400 }] }] });
   if (url.includes("/2/insights")) return R({ data: [{ name: "saved", values: [{ value: 900 }] }] });
+  if (url.includes("/17/insights") && url.includes("breakdown=age%2Cgender")) return R({ data: [{ total_value: { breakdowns: [{ results: [
+    { dimension_values: ["35-44", "F"], value: 300 }, { dimension_values: ["35-44", "M"], value: 200 }, { dimension_values: ["25-34", "F"], value: 400 }, { dimension_values: ["45-54", "U"], value: 100 } ] }] } }] });
+  if (url.includes("/17/insights") && url.includes("breakdown=country")) return R({ data: [{ total_value: { breakdowns: [{ results: [{ dimension_values: ["PE"], value: 750 }, { dimension_values: ["MX"], value: 250 }] }] } }] });
+  if (url.includes("/17/insights") && url.includes("breakdown=city")) return R({ data: [{ total_value: { breakdowns: [{ results: [{ dimension_values: ["Lima, Lima Region"], value: 600 }] }] } }] });
   if (url.includes("/500/feed")) return fbFalla ? R({ error: { message: "Rate limit", code: 4 } }, 400) : R({ id: "500_999" });
   return R({ error: { message: "no" } }, 404);
 };
@@ -38,6 +42,12 @@ const reel = m.cuentas[0].recientes[0];
 ok(reel.metricas.views === 48500 && reel.metricas.tiempo_promedio_s === 11.4, "reel: vistas y tiempo promedio (reintenta sin la métrica no disponible)");
 ok(L.some((x) => x.url.includes("graph.facebook.com/v25.0/1/insights?metric=views,reach,likes,comments,shares,saved,total_interactions,ig_reels_avg_watch_time&")), "segunda consulta sin reels_skip_rate");
 ok(m.cuentas[0].recientes[1].metricas.saved === 900, "post de carrusel con sus métricas");
+const au = m.cuentas[0].audiencia;
+ok(au.seguidores.genero[0].grupo === "mujeres" && au.seguidores.genero[0].pct === 70 && au.seguidores.edad.find((x) => x.grupo === "35-44").pct === 50 && au.seguidores.edad_y_genero_top[0].grupo === "mujeres 25-34", "audiencia: género, edad y cruce edad-género en %");
+ok(au.seguidores.paises[0].grupo === "PE" && au.seguidores.paises[0].pct === 75 && au.seguidores.ciudades[0].grupo.startsWith("Lima"), "audiencia: países y ciudades");
+ok(L.some((x) => x.url.includes("engaged_audience_demographics") && x.url.includes("timeframe=this_month")) && au.interactuan.genero, "audiencia de quienes interactúan este mes");
+const n = L.length; await I.metricasInstagram(env, { cuenta: "doctorarrietam" }, fake);
+ok(!L.slice(n).some((x) => x.url.includes("demographics")), "la audiencia se guarda 12 h (no repite llamadas)");
 // Publicar en la página de Facebook
 ok(P.validarParaPublicar({ formato: "facebook", texto: "Hola", referencia: "Hull et al., 2026", referencia_url: "https://pubmed.ncbi.nlm.nih.gov/1/" }).endsWith("Referencia: Hull et al., 2026\nhttps://pubmed.ncbi.nlm.nih.gov/1/"), "facebook: la referencia va al final del post");
 let err = null;

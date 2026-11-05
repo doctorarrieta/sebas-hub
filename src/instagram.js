@@ -152,6 +152,52 @@ async function insights(t, media, f) {
   return m;
 }
 
+// ---------- Audiencia (datos agregados de Meta: nunca personas individuales) ----------
+// follower_demographics = quienes te siguen; engaged_audience_demographics = quienes interactuaron (este mes).
+// Meta los da en grupos (edad y género, país, ciudad). Se guardan 12 h para no gastar llamadas.
+const GENERO = { F: "mujeres", M: "hombres", U: "sin dato" };
+async function demografia(t, metrica, breakdown, f) {
+  const q = new URLSearchParams({ metric: metrica, period: "lifetime", metric_type: "total_value", breakdown, access_token: t.access_token });
+  if (metrica === "engaged_audience_demographics") q.set("timeframe", "this_month");
+  const r = await f(`${G}/${t.ig_id}/insights?${q}`);
+  const j = await leerJson(r);
+  if (!r.ok) throw new Error(msgError(j, r));
+  const filas = (j.data?.[0]?.total_value?.breakdowns?.[0]?.results || []).map((x) => ({ k: x.dimension_values || [], v: Number(x.value) || 0 }));
+  const total = filas.reduce((a, b) => a + b.v, 0) || 1;
+  const pct = (v) => Math.round((v / total) * 1000) / 10;
+  if (breakdown === "age,gender") {
+    const edades = {}, generos = {};
+    for (const { k: [edad, g], v } of filas) { edades[edad] = (edades[edad] || 0) + v; generos[g] = (generos[g] || 0) + v; }
+    return {
+      genero: Object.entries(generos).sort((a, b) => b[1] - a[1]).map(([g, v]) => ({ grupo: GENERO[g] || g, pct: pct(v) })),
+      edad: Object.entries(edades).sort((a, b) => a[0].localeCompare(b[0])).map(([e, v]) => ({ grupo: e, pct: pct(v) })),
+      edad_y_genero_top: filas.sort((a, b) => b.v - a.v).slice(0, 6).map(({ k: [e, g], v }) => ({ grupo: `${GENERO[g] || g} ${e}`, pct: pct(v) })),
+      total,
+    };
+  }
+  return filas.sort((a, b) => b.v - a.v).slice(0, 10).map(({ k: [x], v }) => ({ grupo: x, pct: pct(v) }));
+}
+
+export async function audienciaInstagram(env, t, f = fetch, { forzar = false } = {}) {
+  const key = `ig:audiencia:${t.usuario || t.ig_id}`;
+  const cache = !forzar && (await env.HUB_KV.get(key));
+  if (cache) return JSON.parse(cache);
+  const out = { revisado: new Date().toISOString(), nota: "Grupos agregados de Meta. 'interactuan' = quienes comentaron, guardaron, compartieron o dieron me gusta este mes." };
+  for (const [nombre, metrica] of [["seguidores", "follower_demographics"], ["interactuan", "engaged_audience_demographics"]]) {
+    const bloque = {};
+    try {
+      Object.assign(bloque, await demografia(t, metrica, "age,gender", f));
+      bloque.paises = await demografia(t, metrica, "country", f);
+      bloque.ciudades = await demografia(t, metrica, "city", f);
+    } catch (e) {
+      bloque.error = e.message;
+    }
+    out[nombre] = bloque;
+  }
+  await env.HUB_KV.put(key, JSON.stringify(out), { expirationTtl: 12 * 3600 });
+  return out;
+}
+
 export async function metricasInstagram(env, a = {}, f = fetch) {
   const usuarios = a.cuenta ? [String(a.cuenta).replace(/^@/, "")] : await cuentasInstagram(env);
   if (!usuarios.length) return { error: "No hay cuentas de Instagram conectadas. Usa contenido_conectar_red con red 'instagram'." };
@@ -180,7 +226,8 @@ export async function metricasInstagram(env, a = {}, f = fetch) {
     for (const m of jm.data || []) {
       pubs.push({ id: m.id, fecha: m.timestamp, tipo: m.media_product_type, formato: m.media_type, enlace: m.permalink, texto: String(m.caption || "").slice(0, 160), metricas: await insights(t, m, f) });
     }
-    out.push({ usuario: perfil.username, seguidores: perfil.followers_count, publicaciones: perfil.media_count, recientes: pubs });
+    const audiencia = a.audiencia === false ? undefined : await audienciaInstagram(env, { ...t, usuario: u }, f).catch((e) => ({ error: e.message }));
+    out.push({ usuario: perfil.username, seguidores: perfil.followers_count, publicaciones: perfil.media_count, audiencia, recientes: pubs });
   }
   return { nota: "Los datos pueden tardar hasta 48 h en estabilizarse. retencion_3s = 1 − reels_skip_rate (estimado por Instagram). La curva completa de retención no está en la API.", cuentas: out };
 }
