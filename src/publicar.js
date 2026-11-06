@@ -19,6 +19,7 @@
 import { enlaceInstagram, callbackInstagram, renovarInstagram, estadoInstagram, publicarFacebook } from "./instagram.js";
 import { enlaceTikTok, callbackTikTok, renovarTikTok, estadoTikTok } from "./tiktok.js";
 import { enlaceYouTube, callbackYouTube, estadoYouTube } from "./youtube.js";
+import { enlaceDrive, estadoDrive } from "./drive.js";
 
 export const REDES = ["x", "threads", "linkedin", "facebook"];
 export const RED = { x: "x", threads: "threads", linkedin: "linkedin", facebook: "facebook" };
@@ -313,7 +314,8 @@ export async function enlaceConexion(env, a = {}) {
   if (red === "instagram") return enlaceInstagram(env);
   if (red === "tiktok") return enlaceTikTok(env);
   if (red === "youtube") return enlaceYouTube(env);
-  if (!["threads", "linkedin"].includes(red)) throw new Error('red debe ser "threads", "linkedin", "instagram", "tiktok" o "youtube" (X se conecta con sus llaves en Cloudflare).');
+  if (red === "drive") return enlaceDrive(env);
+  if (!["threads", "linkedin"].includes(red)) throw new Error('red debe ser "threads", "linkedin", "instagram", "tiktok" o "youtube" o "drive" (X se conecta con sus llaves en Cloudflare).');
   const state = crypto.randomUUID();
   await env.HUB_KV.put(`oauth:estado:${state}`, red, { expirationTtl: 900 });
   if (red === "threads") {
@@ -405,6 +407,7 @@ export async function estadoPublicacion(env, f = fetch) {
     meta: ig,
     tiktok_metricas: await estadoTikTok(env),
     youtube_metricas: await estadoYouTube(env),
+    drive_laminas: await estadoDrive(env),
     pausada: await pausada(env),
     redes: {
       x: { lista: xListo(env), verificacion: await verificarX(env, f) },

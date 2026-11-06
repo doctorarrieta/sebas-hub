@@ -5,6 +5,7 @@ import { metricasInstagram } from "./instagram.js";
 import { metricasTikTok } from "./tiktok.js";
 import { metricasYouTube, retencionYouTube } from "./youtube.js";
 import { guardarRendimiento, enlaceEquipo } from "./equipo.js";
+import { buzonLamina, imagenDe } from "./drive.js";
 import { validarParaPublicar, estadoPublicacion, pausarPublicacion, enlaceConexion, callbackConexion, RED } from "./publicar.js";
 
 const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "noticia", "manual", "otro"];
@@ -32,6 +33,22 @@ function check(val, list, campo) {
 }
 const ideaOut = (r) => r && { ...r, estudio: parse(r.estudio) };
 const piezaOut = (r) => r && { ...r, metricas: parse(r.metricas) };
+
+// ---------- Buzón de láminas ----------
+// Cuando una pieza con imagen exportada de Canva pasa a "enviada_equipo", el hub la deja en Drive con su copy.
+async function enviarABuzon(env, r, a) {
+  const imagen = imagenDe(a, r);
+  if (!r || r.estado !== "enviada_equipo" || !imagen) return piezaOut(r);
+  if (r.drive_enlace && !a.imagen_url && a.reenviar !== true) return piezaOut(r);
+  try {
+    const b = await buzonLamina(env, r, imagen);
+    const n = await env.HUB_DB.prepare("UPDATE piezas SET drive_enlace = ?, drive_error = NULL, actualizada = ? WHERE id = ? RETURNING *").bind(b.enlace, now(), r.id).first();
+    return { ...piezaOut(n), buzon: { ok: true, ...b } };
+  } catch (e) {
+    const n = await env.HUB_DB.prepare("UPDATE piezas SET drive_error = ?, actualizada = ? WHERE id = ? RETURNING *").bind(clip(e.message, 1000), now(), r.id).first();
+    return { ...piezaOut(n), buzon: { ok: false, error: e.message } };
+  }
+}
 
 // ---------- Ideas ----------
 export async function registrarIdea(env, a = {}) {
@@ -102,7 +119,7 @@ export async function registrarPieza(env, a = {}) {
     .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), "Dr. Arrieta", formato === "carrusel" ? check(a.carril || "creador", CARRILES, "carril") : null, clip(a.copy, 4000), clip(a.referencia, 300), clip(a.referencia_url, 1000))
     .first();
   if (ideaId) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'en_produccion', actualizada = ? WHERE id = ? AND estado IN ('nueva','verificando','verificada')").bind(t, ideaId).run();
-  return piezaOut(r);
+  return enviarABuzon(env, r, a);
 }
 
 export async function listarPiezas(env, a = {}) {
@@ -191,6 +208,7 @@ export async function actualizarPieza(env, a = {}) {
   if (a.fecha_publicacion != null) sets.push("fecha_publicacion = ?"), b.push(clip(a.fecha_publicacion, 40));
   if (a.enlace_publicado != null) sets.push("enlace_publicado = ?"), b.push(clip(a.enlace_publicado, 1000));
   if (a.metricas != null) sets.push("metricas = ?"), b.push(json(a.metricas));
+  if (!sets.length && (a.imagen_url || a.reenviar === true)) sets.push("estado = estado");
   if (!sets.length) throw new Error("No hay nada que actualizar.");
   const r = await env.HUB_DB.prepare(`UPDATE piezas SET ${sets.join(", ")}, actualizada = ? WHERE id = ? RETURNING *`)
     .bind(...b, now(), Number(a.id))
@@ -198,7 +216,7 @@ export async function actualizarPieza(env, a = {}) {
   if (!r) throw new Error(`No existe la pieza ${a.id}.`);
   if (r.estado === "publicada" && r.idea_id)
     await env.HUB_DB.prepare("UPDATE ideas SET estado = 'usada', actualizada = ? WHERE id = ?").bind(now(), r.idea_id).run();
-  return piezaOut(r);
+  return enviarABuzon(env, r, a);
 }
 
 export async function contenidoResumen(env) {
@@ -385,6 +403,7 @@ export const contenidoTools = [
         referencia: { type: "string", description: "OBLIGATORIA en x, threads, linkedin y facebook: cita corta del estudio (autores o nombre del estudio y año; la revista solo si es de una universidad o institución de élite). Ej.: 'Estudio RESET for Remission, 2026' o 'Hull et al., 2026'" },
         referencia_url: { type: "string", description: "OBLIGATORIO en x, threads, linkedin y facebook: enlace directo a la fuente primaria (PubMed, DOI o comunicado oficial)" },
         notas: { type: "string" },
+        imagen_url: { type: "string", description: "Lámina o carrusel: enlace de exportación de Canva (export-download.canva.com). Con estado 'enviada_equipo' el hub deja la imagen y su copy en Drive (carpeta LÁMINAS APROBADAS). También sirve pegar ese enlace en notas." },
       },
       required: ["formato", "texto"],
     },
@@ -424,6 +443,9 @@ export const contenidoTools = [
         programada_para: { type: "string", description: "ISO 8601: cuándo se publica sola (X, Threads, LinkedIn, Facebook). Con estado 'programada'; sin fecha = en los próximos 5 minutos. Solo desde 'aprobada'." },
         enlace_publicado: { type: "string" },
         metricas: { type: "object" },
+        copy: { type: "string", description: "Texto de la publicación (caption)" },
+        imagen_url: { type: "string", description: "Lámina o carrusel: enlace de exportación de Canva (export-download.canva.com). Con estado 'enviada_equipo' el hub deja la imagen y su copy en Drive (carpeta LÁMINAS APROBADAS). También sirve pegar ese enlace en notas." },
+        reenviar: { type: "boolean", description: "true para volver a dejarla en Drive aunque ya esté" },
       },
       required: ["id"],
     },
@@ -437,8 +459,8 @@ export const contenidoTools = [
   },
   {
     name: "contenido_conectar_red",
-    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática), o con red 'instagram' su Facebook: conecta a la vez la página de Facebook (publicación automática) y sus cuentas de Instagram vinculadas (solo métricas); con red 'tiktok', una cuenta de TikTok por enlace (solo métricas); con red 'youtube', un canal por enlace (solo métricas y curva de retención). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
-    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram", "tiktok", "youtube"] } }, required: ["red"] },
+    description: "Genera un enlace de un solo uso (15 min) para que Sebastián conecte Threads o LinkedIn (publicación automática), o con red 'instagram' su Facebook: conecta a la vez la página de Facebook (publicación automática) y sus cuentas de Instagram vinculadas (solo métricas); con red 'tiktok', una cuenta de TikTok por enlace (solo métricas); con red 'youtube', un canal por enlace (solo métricas y curva de retención); con red 'drive', la cuenta de Google donde caen las láminas aprobadas (buzón). Él lo abre, entra con su cuenta y autoriza; Claude nunca ve contraseñas ni tokens.",
+    inputSchema: { type: "object", properties: { red: { type: "string", enum: ["threads", "linkedin", "instagram", "tiktok", "youtube", "drive"] } }, required: ["red"] },
     run: (env, a) => enlaceConexion(env, a),
   },
   {

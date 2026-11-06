@@ -6,6 +6,8 @@
 // Secretos (solo en Cloudflare): YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET (cliente OAuth "Aplicación web" de Google Cloud).
 // KV: "yt:canal:<id>" e índice "yt:canales". El token de acceso dura 1 h y se renueva solo con el refresh token.
 
+import { callbackDrive } from "./drive.js";
+
 const ESCOPOS = "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly";
 const DATA = "https://www.googleapis.com/youtube/v3";
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
@@ -49,6 +51,10 @@ export async function callbackYouTube(env, url, pagina, escHtml, f = fetch) {
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code");
   const esperado = state && (await env.HUB_KV.get(`oauth:estado:${state}`));
+  if (esperado === "drive") {
+    await env.HUB_KV.delete(`oauth:estado:${state}`);
+    return callbackDrive(env, url, pagina, escHtml, f);
+  }
   if (esperado !== "youtube") return pagina("Enlace vencido", "Pídele a Claude un enlace nuevo para conectar.", false);
   await env.HUB_KV.delete(`oauth:estado:${state}`);
   if (!code) return pagina("No se conectó", escHtml(url.searchParams.get("error") || "Se canceló la autorización."), false);
