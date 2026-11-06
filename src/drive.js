@@ -43,10 +43,12 @@ export async function enlaceDrive(env) {
   };
 }
 
-// Se llama desde callbackYouTube cuando el estado guardado es "drive" (el estado ya fue validado y borrado).
-export async function callbackDrive(env, url, pagina, escHtml, f = fetch) {
+// Se llama desde callbackYouTube cuando el estado guardado es "drive". El estado se borra solo al terminar bien
+// (si el navegador repite la visita o algo falla a medias, el mismo enlace sigue sirviendo mientras no venza).
+export async function callbackDrive(env, url, pagina, escHtml, f = fetch, state = null) {
   const code = url.searchParams.get("code");
   if (!code) return pagina("No se conectó", escHtml(url.searchParams.get("error") || "Se canceló la autorización."), false);
+  if (state && (await leerConexion(env))?.estado === state) return pagina("Drive conectado", "Ya estaba conectado. Puedes cerrar esta pestaña.");
   try {
     const r1 = await f("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -56,15 +58,19 @@ export async function callbackDrive(env, url, pagina, escHtml, f = fetch) {
     const j1 = await leerJson(r1);
     if (!j1.access_token) throw new Error(msgError(j1, r1));
     if (!j1.refresh_token) throw new Error("Google no entregó permiso permanente. Quita el acceso de la app en tu cuenta de Google y vuelve a conectar.");
-    let t = { access_token: j1.access_token, refresh_token: j1.refresh_token, expira: new Date(Date.now() + (j1.expires_in || 3600) * 1000).toISOString(), conectada: now() };
+    const t = { access_token: j1.access_token, refresh_token: j1.refresh_token, expira: new Date(Date.now() + (j1.expires_in || 3600) * 1000).toISOString(), conectada: now(), estado: state };
+    await guardarConexion(env, t);
     const r2 = await f(`${API}/about?fields=user(emailAddress,displayName)`, { headers: { Authorization: `Bearer ${t.access_token}` } });
     const j2 = await leerJson(r2);
     if (!r2.ok) throw new Error(msgError(j2, r2));
     t.cuenta = j2.user?.emailAddress || null;
     await guardarConexion(env, t);
+    if (state) await env.HUB_KV.delete(`oauth:estado:${state}`);
+    await env.HUB_KV.delete("drive:ultimo_error");
     const raiz = await carpetaRaiz(env, t, f);
     return pagina("Drive conectado", `Conectado: ${escHtml(t.cuenta || "tu cuenta")}. Las láminas aprobadas caerán en la carpeta "${escHtml(NOMBRE_RAIZ)}" (<a href="https://drive.google.com/drive/folders/${escHtml(raiz)}">abrir</a>). Ya puedes cerrar esta pestaña.`);
   } catch (e) {
+    await env.HUB_KV.put("drive:ultimo_error", `${now()} · ${e.message}`);
     return pagina("No se conectó", escHtml(e.message), false);
   }
 }
@@ -176,5 +182,5 @@ export async function buzonLamina(env, p, imagenUrl, f = fetch) {
 export async function estadoDrive(env) {
   const t = await leerConexion(env);
   const raiz = await env.HUB_KV.get("drive:raiz");
-  return { conectada: !!t, cuenta: t?.cuenta || null, carpeta: raiz ? `https://drive.google.com/drive/folders/${raiz}` : null };
+  return { conectada: !!t?.cuenta, cuenta: t?.cuenta || null, ultimo_error: await env.HUB_KV.get("drive:ultimo_error"), carpeta: raiz ? `https://drive.google.com/drive/folders/${raiz}` : null };
 }

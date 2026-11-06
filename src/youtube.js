@@ -51,10 +51,9 @@ export async function callbackYouTube(env, url, pagina, escHtml, f = fetch) {
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code");
   const esperado = state && (await env.HUB_KV.get(`oauth:estado:${state}`));
-  if (esperado === "drive") {
-    await env.HUB_KV.delete(`oauth:estado:${state}`);
-    return callbackDrive(env, url, pagina, escHtml, f);
-  }
+  if (esperado === "drive") return callbackDrive(env, url, pagina, escHtml, f, state);
+  if (!esperado && state && JSON.parse((await env.HUB_KV.get("drive:conexion")) || "{}").estado === state)
+    return pagina("Drive conectado", "Ya quedó conectado. Puedes cerrar esta pestaña.");
   if (esperado !== "youtube") return pagina("Enlace vencido", "Pídele a Claude un enlace nuevo para conectar.", false);
   await env.HUB_KV.delete(`oauth:estado:${state}`);
   if (!code) return pagina("No se conectó", escHtml(url.searchParams.get("error") || "Se canceló la autorización."), false);
