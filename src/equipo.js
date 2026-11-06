@@ -43,11 +43,11 @@ export const FORMATOS_EQUIPO = ["reel", "reel_herida", "radio", "youtube", "carr
 export async function guionesAprobados(env) {
   const marcas = FORMATOS_EQUIPO.map(() => "?").join(",");
   const { results } = await env.HUB_DB.prepare(
-    `SELECT id, formato, carril, titulo, gancho, ruta_gancho, texto, copy, referencia, referencia_url, estado, actualizada, fecha_publicacion, enlace_publicado, drive_enlace
+    `SELECT id, formato, carril, titulo, gancho, ruta_gancho, texto, copy, referencia, referencia_url, estado, actualizada, fecha_publicacion, enlace_publicado, drive_enlace, edicion
      FROM piezas WHERE estado IN ('aprobada','enviada_equipo','programada','publicada') AND formato IN (${marcas})
      ORDER BY CASE estado WHEN 'aprobada' THEN 0 WHEN 'enviada_equipo' THEN 1 WHEN 'programada' THEN 2 ELSE 3 END, actualizada DESC LIMIT 300`
   ).bind(...FORMATOS_EQUIPO).all();
-  return results;
+  return results.map((r) => { let e = null; try { e = r.edicion ? JSON.parse(r.edicion) : null; } catch {} return { ...r, edicion: e }; });
 }
 
 async function codigo(env) {

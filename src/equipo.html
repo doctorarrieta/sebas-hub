@@ -130,6 +130,12 @@ details summary { cursor: pointer; color: var(--brand); font-weight: 500; font-s
 .gacts { display: flex; flex-wrap: wrap; gap: 8px; font-size: 14px; }
 .gacts a { color: var(--brand); }
 .guiones { display: grid; gap: 12px; }
+.gedit { background: var(--decide-soft); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; font-size: 14.5px; }
+.gedit h4 { margin: 0; font: 700 13px/1.2 var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--decide); }
+.gedit dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
+.gedit dt { font-weight: 700; }
+.gedit dd { margin: 0; white-space: pre-wrap; }
+@media (max-width: 560px) { .gedit dl { grid-template-columns: 1fr; } .gedit dd { margin-bottom: 6px; } }
 @media (max-width: 720px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -392,6 +398,8 @@ html { scroll-behavior: smooth; }
   const FN = { reel: "Reel 30 s", reel_herida: "Reel herida abierta", radio: "Radio", youtube: "YouTube", carrusel: "Carrusel / lámina", facebook: "Facebook", linkedin: "LinkedIn", otro: "Otro" };
   const EN = { aprobada: "Por producir", enviada_equipo: "Enviado al equipo", programada: "Programado", publicada: "Publicado" };
   let guiones = [];
+  const ED = [["gancho_pantalla", "Gancho en pantalla (0–3 s)"], ["primer_frame", "Primer cuadro"], ["re_gancho", "Re-gancho"], ["ritmo", "Ritmo y cortes"], ["textos_pantalla", "Textos en pantalla"], ["broll", "Apoyos visuales (b-roll)"], ["subtitulos", "Subtítulos"], ["musica_sonido", "Música y sonido"], ["cierre", "Cierre y CTA"], ["evitar", "Evitar"]];
+  const editHtml = (e) => e && typeof e === "object" ? `<div class="gedit"><h4>Edición para máxima retención</h4><dl>${ED.filter(([k]) => e[k]).map(([k, t]) => `<dt>${esc(t)}</dt><dd>${esc(e[k])}</dd>`).join("")}</dl></div>` : "";
   function renderGuiones() {
     const f = $("f-gform").value, e = $("f-gest").value, q = $("f-gq").value.trim().toLowerCase();
     const l = guiones.filter((g) => (!f || g.formato === f) && (!e || g.estado === e) && (!q || [g.titulo, g.gancho, g.texto, g.copy].join(" ").toLowerCase().includes(q)));
@@ -399,6 +407,7 @@ html { scroll-behavior: smooth; }
       <div class="gmeta"><span class="gtag">${esc(FN[g.formato] || g.formato)}</span><span class="gtag${g.estado === "aprobada" ? " listo" : ""}">${esc(EN[g.estado] || g.estado)}</span><span>Pieza ${esc(g.id)} · ${esc(new Date(g.actualizada).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></div>
       <h3>${esc(g.titulo || "Sin título")}</h3>
       ${g.gancho ? `<div class="ghook">Gancho: ${esc(g.gancho)}</div>` : ""}
+      ${editHtml(g.edicion)}
       <details><summary>Ver guion completo</summary><pre>${esc(g.texto)}</pre></details>
       ${g.copy ? `<details><summary>Ver copy (texto de la publicación)</summary><pre>${esc(g.copy)}</pre></details>` : ""}
       <div class="gacts">${g.referencia ? `<span>Fuente: ${g.referencia_url ? `<a href="${esc(g.referencia_url)}" target="_blank" rel="noopener">${esc(g.referencia)}</a>` : esc(g.referencia)}</span>` : ""}${g.drive_enlace ? `<a href="${esc(g.drive_enlace)}" target="_blank" rel="noopener">Abrir en Drive</a>` : ""}${g.enlace_publicado ? `<a href="${esc(g.enlace_publicado)}" target="_blank" rel="noopener">Ver publicado</a>` : ""}</div>

@@ -37,4 +37,11 @@ ok((await E.equipoHttp(new Request("https://h/equipo/" + nuevo, { method: "POST"
   const t = d.guiones.map((g) => g.titulo);
   ok(t.includes("Reel aprobado") && !t.includes("Reel sin aprobar") && !t.includes("Post X"), "el tablero muestra solo guiones aprobados para el equipo (sin X ni pendientes)");
 }
+
+{
+  const p = await C.registrarPieza(env, { formato: "reel", titulo: "Con edición", texto: "G", estado: "aprobada", edicion: { gancho_pantalla: "TEXTO", re_gancho: "s 5", basura: "x" } });
+  ok(p.edicion && p.edicion.gancho_pantalla === "TEXTO" && !p.edicion.basura, "guarda notas de edición (solo campos conocidos)");
+  const g = (await E.leerRendimiento(env)).guiones.find((x) => x.titulo === "Con edición");
+  ok(g && g.edicion.re_gancho === "s 5", "el tablero recibe las notas de edición");
+}
 await dispose();

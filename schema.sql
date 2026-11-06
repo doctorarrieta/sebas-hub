@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS piezas (
   referencia_url TEXT,
   drive_enlace TEXT,
   drive_error TEXT,
+  edicion TEXT,
   ref_id TEXT,
   ref_intentos INTEGER NOT NULL DEFAULT 0
 );

@@ -32,7 +32,18 @@ function check(val, list, campo) {
   return val;
 }
 const ideaOut = (r) => r && { ...r, estudio: parse(r.estudio) };
-const piezaOut = (r) => r && { ...r, metricas: parse(r.metricas) };
+const piezaOut = (r) => r && { ...r, metricas: parse(r.metricas), edicion: parse(r.edicion) };
+
+// ---------- Notas de edición (para el equipo de edición: retención) ----------
+const CAMPOS_EDICION = ["gancho_pantalla", "primer_frame", "re_gancho", "ritmo", "textos_pantalla", "broll", "subtitulos", "musica_sonido", "cierre", "evitar"];
+function edicionJson(e) {
+  if (typeof e === "string") { try { e = JSON.parse(e); } catch { e = { ritmo: e }; } }
+  if (!e || typeof e !== "object") throw new Error("edicion debe ser un objeto con notas de edición.");
+  const out = {};
+  for (const k of CAMPOS_EDICION) if (e[k] != null && String(e[k]).trim()) out[k] = clip(String(e[k]), 1500);
+  if (!Object.keys(out).length) throw new Error(`edicion vacía. Campos: ${CAMPOS_EDICION.join(", ")}.`);
+  return JSON.stringify(out);
+}
 
 // ---------- Buzón de láminas ----------
 // Cuando una pieza con imagen exportada de Canva pasa a "enviada_equipo", el hub la deja en Drive con su copy.
@@ -114,9 +125,9 @@ export async function registrarPieza(env, a = {}) {
     throw new Error(`No existe la idea ${ideaId}.`);
   const t = now();
   const r = await env.HUB_DB.prepare(
-    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca, carril, copy, referencia, referencia_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    "INSERT INTO piezas (creada, actualizada, idea_id, formato, titulo, gancho, ruta_gancho, texto, estado, notas, marca, carril, copy, referencia, referencia_url, edicion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
   )
-    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), "Dr. Arrieta", formato === "carrusel" ? check(a.carril || "creador", CARRILES, "carril") : null, clip(a.copy, 4000), clip(a.referencia, 300), clip(a.referencia_url, 1000))
+    .bind(t, t, ideaId, formato, clip(a.titulo, 300), clip(a.gancho, 1000), clip(a.ruta_gancho, 100), clip(a.texto, 30000), estado, clip(a.notas, 4000), "Dr. Arrieta", formato === "carrusel" ? check(a.carril || "creador", CARRILES, "carril") : null, clip(a.copy, 4000), clip(a.referencia, 300), clip(a.referencia_url, 1000), a.edicion != null ? edicionJson(a.edicion) : null)
     .first();
   if (ideaId) await env.HUB_DB.prepare("UPDATE ideas SET estado = 'en_produccion', actualizada = ? WHERE id = ? AND estado IN ('nueva','verificando','verificada')").bind(t, ideaId).run();
   return enviarABuzon(env, r, a);
@@ -208,6 +219,7 @@ export async function actualizarPieza(env, a = {}) {
   if (a.fecha_publicacion != null) sets.push("fecha_publicacion = ?"), b.push(clip(a.fecha_publicacion, 40));
   if (a.enlace_publicado != null) sets.push("enlace_publicado = ?"), b.push(clip(a.enlace_publicado, 1000));
   if (a.metricas != null) sets.push("metricas = ?"), b.push(json(a.metricas));
+  if (a.edicion != null) sets.push("edicion = ?"), b.push(edicionJson(a.edicion));
   if (!sets.length && (a.imagen_url || a.reenviar === true)) sets.push("estado = estado");
   if (!sets.length) throw new Error("No hay nada que actualizar.");
   const r = await env.HUB_DB.prepare(`UPDATE piezas SET ${sets.join(", ")}, actualizada = ? WHERE id = ? RETURNING *`)
@@ -403,6 +415,7 @@ export const contenidoTools = [
         referencia: { type: "string", description: "OBLIGATORIA en x, threads, linkedin y facebook: cita corta del estudio (autores o nombre del estudio y año; la revista solo si es de una universidad o institución de élite). Ej.: 'Estudio RESET for Remission, 2026' o 'Hull et al., 2026'" },
         referencia_url: { type: "string", description: "OBLIGATORIO en x, threads, linkedin y facebook: enlace directo a la fuente primaria (PubMed, DOI o comunicado oficial)" },
         notas: { type: "string" },
+        edicion: { type: "object", description: "Notas de edición para máxima retención (las ve el equipo en su tablero): gancho_pantalla (texto 0–3 s), primer_frame, re_gancho (cuándo y cómo), ritmo (cortes, silencios), textos_pantalla, broll, subtitulos, musica_sonido, cierre (CTA + tarjeta de fuente), evitar." },
         imagen_url: { type: "string", description: "Lámina o carrusel: enlace de exportación de Canva (export-download.canva.com). Con estado 'enviada_equipo' el hub deja la imagen y su copy en Drive (carpeta LÁMINAS APROBADAS). También sirve pegar ese enlace en notas." },
       },
       required: ["formato", "texto"],
@@ -444,6 +457,7 @@ export const contenidoTools = [
         enlace_publicado: { type: "string" },
         metricas: { type: "object" },
         copy: { type: "string", description: "Texto de la publicación (caption)" },
+        edicion: { type: "object", description: "Notas de edición para máxima retención (las ve el equipo en su tablero): gancho_pantalla (texto 0–3 s), primer_frame, re_gancho (cuándo y cómo), ritmo (cortes, silencios), textos_pantalla, broll, subtitulos, musica_sonido, cierre (CTA + tarjeta de fuente), evitar." },
         imagen_url: { type: "string", description: "Lámina o carrusel: enlace de exportación de Canva (export-download.canva.com). Con estado 'enviada_equipo' el hub deja la imagen y su copy en Drive (carpeta LÁMINAS APROBADAS). También sirve pegar ese enlace en notas." },
         reenviar: { type: "boolean", description: "true para volver a dejarla en Drive aunque ya esté" },
       },
