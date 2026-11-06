@@ -119,6 +119,17 @@ details summary { cursor: pointer; color: var(--brand); font-weight: 500; font-s
 .working::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--decide); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .25; } }
 .done { color: var(--ok); font-weight: 600; }
+.gcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 8px; }
+.gcard h3 { font-size: 17px; font-weight: 700; }
+.gmeta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.gtag { font: 500 11.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .05em; background: var(--sunk); border-radius: 999px; padding: 5px 9px; color: var(--ink); }
+.gtag.listo { background: var(--decide-soft); color: var(--decide); }
+.ghook { font-weight: 600; }
+.gcard details summary { cursor: pointer; color: var(--brand); font-weight: 600; font-size: 14px; }
+.gcard pre { white-space: pre-wrap; font: 15px/1.55 var(--body); margin: 8px 0 0; background: var(--sunk); border-radius: 8px; padding: 12px 14px; }
+.gacts { display: flex; flex-wrap: wrap; gap: 8px; font-size: 14px; }
+.gacts a { color: var(--brand); }
+.guiones { display: grid; gap: 12px; }
 @media (max-width: 720px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -215,7 +226,17 @@ html { scroll-behavior: smooth; }
     </div>
     <div class="meta"><span id="fresh">Cargando…</span><button id="reload" class="btn-ghost" type="button">Actualizar</button></div>
   </header>
-  <nav class="nav" aria-label="Secciones"><a href="#resumen">Resumen</a><a href="#rendimiento">Videos</a><a href="#dias-sec">Recomendaciones</a><a href="#aprend-sec">Aprendizajes</a></nav>
+  <nav class="nav" aria-label="Secciones"><a href="#guiones-sec">Guiones</a><a href="#resumen">Resumen</a><a href="#rendimiento">Videos</a><a href="#dias-sec">Recomendaciones</a><a href="#aprend-sec">Aprendizajes</a></nav>
+
+  <section class="part" id="guiones-sec" aria-labelledby="h-guiones">
+    <div class="part-head"><h2 id="h-guiones">Guiones aprobados</h2><span class="sec-note">Todo lo que el doctor ya aprobó para grabar, editar o diseñar. Solo lectura.</span></div>
+    <div class="filters">
+      <label for="f-gform">Formato <select id="f-gform"><option value="">Todos</option><option value="reel">Reel 30 s</option><option value="reel_herida">Reel herida abierta</option><option value="radio">Radio</option><option value="youtube">YouTube</option><option value="carrusel">Carrusel / lámina</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option></select></label>
+      <label for="f-gest">Estado <select id="f-gest"><option value="">Todos</option><option value="aprobada">Por producir</option><option value="enviada_equipo">Enviado al equipo</option><option value="programada">Programado</option><option value="publicada">Publicado</option></select></label>
+      <label for="f-gq">Buscar <input id="f-gq" type="search" placeholder="tema o palabra"></label>
+    </div>
+    <div id="guiones" class="guiones"><div class="empty">Cargando guiones…</div></div>
+  </section>
 
   <section class="part" id="resumen" aria-labelledby="h-resumen">
     <div class="part-head"><h2 id="h-resumen">Resumen</h2><span class="sec-note">Se actualiza cada día después de la revisión de las 11:30 a. m.</span></div>
@@ -367,12 +388,32 @@ html { scroll-behavior: smooth; }
     const d = perf.dias[0], r = d && Array.isArray(d.recomendaciones) ? d.recomendaciones[0] : null;
     $("g-reco").innerHTML = r ? `<div class="reco">${esc(r)}</div><span class="sec-note">${esc(dfmt(d.fecha))}</span>` : `<div class="sec-note">La primera llega después de la primera revisión con videos.</div>`;
   }
+  // ================= Guiones aprobados =================
+  const FN = { reel: "Reel 30 s", reel_herida: "Reel herida abierta", radio: "Radio", youtube: "YouTube", carrusel: "Carrusel / lámina", facebook: "Facebook", linkedin: "LinkedIn", otro: "Otro" };
+  const EN = { aprobada: "Por producir", enviada_equipo: "Enviado al equipo", programada: "Programado", publicada: "Publicado" };
+  let guiones = [];
+  function renderGuiones() {
+    const f = $("f-gform").value, e = $("f-gest").value, q = $("f-gq").value.trim().toLowerCase();
+    const l = guiones.filter((g) => (!f || g.formato === f) && (!e || g.estado === e) && (!q || [g.titulo, g.gancho, g.texto, g.copy].join(" ").toLowerCase().includes(q)));
+    $("guiones").innerHTML = l.length ? l.map((g) => `<article class="gcard">
+      <div class="gmeta"><span class="gtag">${esc(FN[g.formato] || g.formato)}</span><span class="gtag${g.estado === "aprobada" ? " listo" : ""}">${esc(EN[g.estado] || g.estado)}</span><span>Pieza ${esc(g.id)} · ${esc(new Date(g.actualizada).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></div>
+      <h3>${esc(g.titulo || "Sin título")}</h3>
+      ${g.gancho ? `<div class="ghook">Gancho: ${esc(g.gancho)}</div>` : ""}
+      <details><summary>Ver guion completo</summary><pre>${esc(g.texto)}</pre></details>
+      ${g.copy ? `<details><summary>Ver copy (texto de la publicación)</summary><pre>${esc(g.copy)}</pre></details>` : ""}
+      <div class="gacts">${g.referencia ? `<span>Fuente: ${g.referencia_url ? `<a href="${esc(g.referencia_url)}" target="_blank" rel="noopener">${esc(g.referencia)}</a>` : esc(g.referencia)}</span>` : ""}${g.drive_enlace ? `<a href="${esc(g.drive_enlace)}" target="_blank" rel="noopener">Abrir en Drive</a>` : ""}${g.enlace_publicado ? `<a href="${esc(g.enlace_publicado)}" target="_blank" rel="noopener">Ver publicado</a>` : ""}</div>
+    </article>`).join("") : `<div class="empty">No hay guiones con ese filtro.</div>`;
+  }
+  ["f-gform", "f-gest"].forEach((id) => $(id).addEventListener("change", renderGuiones));
+  $("f-gq").addEventListener("input", renderGuiones);
+
   async function startPerf() {
     try {
       const r = await fetch(location.pathname.replace(/\/$/, "") + "/datos", { cache: "no-store" });
       if (!r.ok) throw new Error(r.status);
       const d = await r.json();
       perf.videos = d.videos || []; perf.dias = d.dias || []; perf.aprendizajes = d.aprendizajes || [];
+      guiones = d.guiones || []; renderGuiones();
       perf.ready = { videos: true, dias: true, aprendizajes: true };
       $("fresh").textContent = d.actualizado ? "Actualizado " + new Date(d.actualizado).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Sin datos todavía";
       $("k-vids").textContent = perf.videos.length;
@@ -382,7 +423,7 @@ html { scroll-behavior: smooth; }
       renderVids(); renderGlance(); renderDays(); renderReco(); renderLearns();
     } catch (e) {
       const msg = `<div class="empty" style="grid-column:1/-1">No se pudieron cargar los datos. Recarga la página en un momento.</div>`;
-      $("vids").innerHTML = msg; $("days").innerHTML = msg; $("learns").innerHTML = msg;
+      $("vids").innerHTML = msg; $("guiones").innerHTML = msg; $("days").innerHTML = msg; $("learns").innerHTML = msg;
       $("fresh").textContent = "Sin conexión";
     }
   }

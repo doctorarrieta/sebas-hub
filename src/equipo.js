@@ -31,10 +31,23 @@ export async function guardarRendimiento(env, a = {}) {
 export async function leerRendimiento(env) {
   const q = (c, lim) =>
     env.HUB_DB.prepare("SELECT id, datos, actualizada FROM rendimiento WHERE coleccion = ? ORDER BY fecha DESC, actualizada DESC LIMIT ?").bind(c, lim).all();
-  const [v, d, a] = await Promise.all([q("videos", 400), q("dias", 30), q("aprendizajes", 300)]);
+  const [v, d, a, g] = await Promise.all([q("videos", 400), q("dias", 30), q("aprendizajes", 300), guionesAprobados(env)]);
   const map = (r) => r.results.map((x) => ({ id: x.id, ...JSON.parse(x.datos) }));
   const ultima = [...v.results, ...d.results, ...a.results].map((x) => x.actualizada).sort().pop() || null;
-  return { videos: map(v), dias: map(d), aprendizajes: map(a), actualizado: ultima };
+  return { videos: map(v), dias: map(d), aprendizajes: map(a), guiones: g, actualizado: ultima };
+}
+
+// Guiones que el equipo necesita para grabar, editar o diseñar: solo los ya aprobados por el doctor.
+// (X y Threads no van: se publican solos desde el hub.)
+export const FORMATOS_EQUIPO = ["reel", "reel_herida", "radio", "youtube", "carrusel", "facebook", "linkedin", "otro"];
+export async function guionesAprobados(env) {
+  const marcas = FORMATOS_EQUIPO.map(() => "?").join(",");
+  const { results } = await env.HUB_DB.prepare(
+    `SELECT id, formato, carril, titulo, gancho, ruta_gancho, texto, copy, referencia, referencia_url, estado, actualizada, fecha_publicacion, enlace_publicado, drive_enlace
+     FROM piezas WHERE estado IN ('aprobada','enviada_equipo','programada','publicada') AND formato IN (${marcas})
+     ORDER BY CASE estado WHEN 'aprobada' THEN 0 WHEN 'enviada_equipo' THEN 1 WHEN 'programada' THEN 2 ELSE 3 END, actualizada DESC LIMIT 300`
+  ).bind(...FORMATOS_EQUIPO).all();
+  return results;
 }
 
 async function codigo(env) {

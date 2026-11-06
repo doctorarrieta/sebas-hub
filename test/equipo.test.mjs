@@ -27,4 +27,14 @@ ok(/coleccion inválida/.test(err), "rechaza colecciones que no existen");
 const nuevo = (await E.enlaceEquipo(env, { renovar: true })).enlace.split("/equipo/")[1];
 ok(nuevo !== cod && (await get("/equipo/" + cod)).status === 404 && (await get("/equipo/" + nuevo)).status === 200, "renovar anula el enlace anterior");
 ok((await E.equipoHttp(new Request("https://h/equipo/" + nuevo, { method: "POST" }), env, new URL("https://h/equipo/" + nuevo))).status === 404, "solo lectura (no acepta POST)");
+
+{
+  const { registrarPieza } = await import("../src/contenido.js");
+  await registrarPieza(env, { formato: "reel", titulo: "Reel aprobado", texto: "Guion", estado: "aprobada" });
+  await registrarPieza(env, { formato: "reel", titulo: "Reel sin aprobar", texto: "Guion", estado: "por_aprobar" });
+  await registrarPieza(env, { formato: "x", titulo: "Post X", texto: "x", estado: "aprobada", referencia: "r", referencia_url: "https://a" });
+  const d = await E.leerRendimiento(env);
+  const t = d.guiones.map((g) => g.titulo);
+  ok(t.includes("Reel aprobado") && !t.includes("Reel sin aprobar") && !t.includes("Post X"), "el tablero muestra solo guiones aprobados para el equipo (sin X ni pendientes)");
+}
 await dispose();
