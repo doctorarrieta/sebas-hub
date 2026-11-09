@@ -74,7 +74,11 @@ export async function equipoHttp(req, env, url) {
   const metodoOk = m && (m[2] === "/auditar" ? req.method === "POST" : req.method === "GET");
   if (!m || !c || m[1] !== c || !metodoOk)
     return new Response("Este enlace no existe o ya no es válido. Pide el enlace actualizado.", { status: 404, headers: { ...H, "content-type": "text/plain; charset=utf-8" } });
-  if (m[2] === "/auditorias") return Response.json(await historialAuditorias(env), { headers: H });
+  if (m[2] === "/auditorias") {
+    const h = await historialAuditorias(env);
+    if (url.searchParams.get("diag") === "1") h.ultimo_error = JSON.parse((await env.HUB_KV.get("auditor:ultimo_error")) || "null");
+    return Response.json(h, { headers: H });
+  }
   if (m[2] === "/auditar") {
     if (Number(req.headers.get("content-length") || 0) > 64 * 1024) return Response.json({ error: "Guion demasiado grande." }, { status: 413, headers: H });
     try {

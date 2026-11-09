@@ -105,7 +105,11 @@ export async function auditarGuion(env, a = {}, fetcher = fetch) {
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`La API de Claude respondió ${r.status}: ${body?.error?.message || "error"}`);
   const out = (body.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
-  if (body.stop_reason === "max_tokens") throw new Error("La auditoría salió demasiado larga y se cortó. Intenta de nuevo o divide el guion.");
+  if (body.stop_reason === "max_tokens") {
+    const tipos = (body.content || []).map((c) => `${c.type}:${(c.text || c.thinking || "").length}`).join(",");
+    await env.HUB_KV.put("auditor:ultimo_error", JSON.stringify({ fecha: now(), usage: body.usage, tipos, inicio: out.slice(0, 1500), fin: out.slice(-1500) }), { expirationTtl: 60 * 60 * 24 * 7 });
+    throw new Error("La auditoría salió demasiado larga y se cortó. Intenta de nuevo o divide el guion.");
+  }
   let auditoria;
   try { auditoria = sacarJson(out); }
   catch (e) { console.log("auditor: respuesta no válida", body.stop_reason, out.slice(0, 500)); throw new Error(`La respuesta no trajo una auditoría válida (${body.stop_reason || "sin motivo"}). Intenta de nuevo.`); }
