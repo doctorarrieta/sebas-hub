@@ -233,6 +233,14 @@ html { scroll-behavior: smooth; }
 .aud-top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .aud-score { font: 800 44px/1 var(--display); font-variant-numeric: tabular-nums; }
 .aud-score small { font-size: 16px; color: var(--muted); font-weight: 600; }
+.cuentas { border: 0; padding: 0; margin: 0 0 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.cuentas legend { font-weight: 600; margin-bottom: 8px; }
+.cta-cuenta { display: flex; gap: 10px; align-items: flex-start; border: 2px solid var(--line, #ddd); border-radius: 12px; padding: 12px; cursor: pointer; }
+.cta-cuenta small { display: block; opacity: .75; margin-top: 4px; line-height: 1.35; }
+.cta-cuenta:has(input:checked) { border-color: var(--ok, #0a7); background: var(--brand-soft, #eefaf5); }
+.cta-cuenta.af:has(input:checked) { border-color: #1f3a5f; background: #e8eef7; }
+.chip-af { font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; background: #1f3a5f; color: #fff; }
+.chip-da { font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; background: var(--brand-soft, #eefaf5); color: var(--ok, #0a7); }
 .verd { font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 6px 10px; border-radius: 999px; }
 .verd.listo { background: var(--brand-soft); color: var(--ok); } .verd.ajustar { background: var(--warn-soft); color: var(--warn); } .verd.rehacer { background: var(--urgent-soft); color: var(--urgent); }
 .crit { display: grid; gap: 10px; }
@@ -279,8 +287,12 @@ html { scroll-behavior: smooth; }
   <section class="part" id="auditoria" aria-labelledby="h-aud">
     <div class="part-head"><h2 id="h-aud">Auditoría de guiones</h2><span class="sec-note">Pega un guion y recibe su revisión: gancho, retención, rigor, voz, Maslow × Lipman y una versión optimizada. Usa lo que aprendimos de nuestros propios videos.</span></div>
     <form id="aud-form" class="audform">
+      <fieldset class="cuentas" aria-label="¿De qué cuenta es el guion?">
+        <legend>1 · ¿De qué cuenta es el guion?</legend>
+        <label class="cta-cuenta"><input type="radio" name="aud-cuenta" value="doctorarrieta" checked><span><b>Doctor Arrieta / Anti Rebote</b><small>Mujer de 35 a 55 que cuida a su familia. Panel: la que hace scroll, la cuidadora, la que ya rebotó, el de la pastilla mágica, el colega, la paciente de Anti Rebote.</small></span></label>
+        <label class="cta-cuenta af"><input type="radio" name="aud-cuenta" value="antifragil"><span><b>Método Antifrágil</b><small>Hombre de 40 a 65 que siente que su cuerpo lo deja. Panel: el del sillón, el Despertador, el que ya probó todo, el Patriarca, la Esposa, el colega. Reglas extra: TRT con letra chica, sin manosfera, sin chistes sexuales.</small></span></label>
+      </fieldset>
       <div class="filters">
-        <label for="aud-cuenta">Cuenta <select id="aud-cuenta"><option value="doctorarrieta">Doctor Arrieta / Anti Rebote</option><option value="antifragil">Método Antifrágil</option></select></label>
         <label for="aud-formato">Formato <select id="aud-formato"></select></label>
         <label for="aud-titulo">Tema <input id="aud-titulo" type="text" maxlength="200" placeholder="opcional"></label>
         <label for="aud-autor">Tu nombre <input id="aud-autor" type="text" maxlength="60" placeholder="opcional"></label>
@@ -505,7 +517,7 @@ html { scroll-behavior: smooth; }
     const VER = { lista: ["listo", "Lista para grabar"], ajustes: ["ajustar", "Sale con ajustes"], reescribir: ["rehacer", "Reescribir"], no_sale: ["rehacer", "No sale"] };
     const [vcls, vtxt] = VER[a.veredicto] || VER.ajustes;
     return `<article class="aud">
-      <div class="aud-top"><div class="aud-score">${esc(a.puntaje_global ?? "–")}<small>/100</small></div><span class="verd ${vcls}">${vtxt}</span><span class="sec-note">${it.cuenta === "antifragil" ? "Antifrágil · " : ""}${esc(FORM_AUD[it.formato] || it.formato || "")}${it.titulo ? " · " + esc(it.titulo) : ""}${it.autor ? " · " + esc(it.autor) : ""} · ${esc(new Date(it.fecha).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></div>
+      <div class="aud-top"><div class="aud-score">${esc(a.puntaje_global ?? "–")}<small>/100</small></div><span class="verd ${vcls}">${vtxt}</span>${it.cuenta === "antifragil" ? `<span class="chip-af">Antifrágil</span>` : `<span class="chip-da">Doctor Arrieta</span>`}<span class="sec-note">${esc(FORM_AUD[it.formato] || it.formato || "")}${it.titulo ? " · " + esc(it.titulo) : ""}${it.autor ? " · " + esc(it.autor) : ""} · ${esc(new Date(it.fecha).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></div>
       ${it.duracion ? `<div class="sec-note" style="font-weight:600;${it.duracion.excede ? "color:#b42318" : ""}">Duración medida: ${esc(it.duracion.palabras)} palabras ≈ ${esc(it.duracion.segundos)} s${it.duracion.excede ? " · supera el tope de 40 s, hay que recortar" : ""}</div>` : ""}
       ${a.resumen ? `<p style="margin:0;font-size:16px">${esc(a.resumen)}</p>` : ""}
       ${corr ? `<div><h4>Las 3 correcciones que importan</h4><ul>${corr}</ul></div>` : ""}
@@ -524,7 +536,7 @@ html { scroll-behavior: smooth; }
   }
   let FORM_AUD = {};
   function renderHist() {
-    $("aud-hist").innerHTML = audHist.length ? audHist.map((it) => `<button type="button" data-ver="${esc(it.id)}"><span>${esc(it.titulo || (it.texto || "").slice(0, 70) + "…")}</span><span class="sec-note">${esc(it.auditoria?.puntaje_global ?? "–")}/100 · ${esc(new Date(it.fecha).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></button>`).join("") : `<div class="sec-note">Todavía no hay auditorías.</div>`;
+    $("aud-hist").innerHTML = audHist.length ? audHist.map((it) => `<button type="button" data-ver="${esc(it.id)}"><span>${esc(it.titulo || (it.texto || "").slice(0, 70) + "…")}</span><span class="sec-note">${it.cuenta === "antifragil" ? "Antifrágil · " : ""}${esc(it.auditoria?.puntaje_global ?? "–")}/100 · ${esc(new Date(it.fecha).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></button>`).join("") : `<div class="sec-note">Todavía no hay auditorías.</div>`;
   }
   async function cargarAud() {
     try {
@@ -548,7 +560,7 @@ html { scroll-behavior: smooth; }
     $("aud-btn").disabled = true;
     const t0 = Date.now(); const tick = setInterval(() => { $("aud-estado").textContent = `Auditando… ${Math.round((Date.now() - t0) / 1000)} s (tarda 20 a 60 s)`; }, 500);
     try {
-      const r = await fetch(BASE + "/auditar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texto, cuenta: $("aud-cuenta").value, formato: $("aud-formato").value, titulo: $("aud-titulo").value.trim(), autor: $("aud-autor").value.trim() }) });
+      const r = await fetch(BASE + "/auditar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texto, cuenta: (document.querySelector('input[name="aud-cuenta"]:checked') || {}).value || "doctorarrieta", formato: $("aud-formato").value, titulo: $("aud-titulo").value.trim(), autor: $("aud-autor").value.trim() }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "No se pudo auditar.");
       audHist.unshift(d); audHist = audHist.slice(0, 40); renderHist();
