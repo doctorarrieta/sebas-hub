@@ -505,6 +505,7 @@ html { scroll-behavior: smooth; }
     const [vcls, vtxt] = VER[a.veredicto] || VER.ajustes;
     return `<article class="aud">
       <div class="aud-top"><div class="aud-score">${esc(a.puntaje_global ?? "–")}<small>/100</small></div><span class="verd ${vcls}">${vtxt}</span><span class="sec-note">${esc(FORM_AUD[it.formato] || it.formato || "")}${it.titulo ? " · " + esc(it.titulo) : ""}${it.autor ? " · " + esc(it.autor) : ""} · ${esc(new Date(it.fecha).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></div>
+      ${it.duracion ? `<div class="sec-note" style="font-weight:600;${it.duracion.excede ? "color:#b42318" : ""}">Duración medida: ${esc(it.duracion.palabras)} palabras ≈ ${esc(it.duracion.segundos)} s${it.duracion.excede ? " · supera el tope de 40 s, hay que recortar" : ""}</div>` : ""}
       ${a.resumen ? `<p style="margin:0;font-size:16px">${esc(a.resumen)}</p>` : ""}
       ${corr ? `<div><h4>Las 3 correcciones que importan</h4><ul>${corr}</ul></div>` : ""}
       ${crit ? `<div class="crit">${crit}</div>` : ""}

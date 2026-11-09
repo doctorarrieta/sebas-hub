@@ -124,9 +124,9 @@ Cómo subirlo: herida abstracta → bájala al síntoma exacto; sin otro → nó
 
 ## 9. Reglas por formato
 
-Detecta el formato (si no se indica, infiérelo y dilo). Cuenta palabras y caracteres y estima la duración a 145 ppm.
+Detecta el formato (si no se indica, infiérelo y dilo). Cuenta palabras y caracteres y estima la duración a 145 ppm. Si el mensaje trae "MEDICIÓN AUTOMÁTICA", usa esas cifras tal cual (no vuelvas a contar): las marcas entre corchetes como [0–3 s · GANCHO] no se hablan.
 
-- Reel / TikTok: menos de 40 s; ideal 25–30 s, unas 70 palabras (la Hoja de ruta admite 75–90 en piezas de hasta 40 s); más de 50 s es error. [0–3 s] gancho; [3–12 s] valor; [12–15 s] re-gancho (además del temprano del s 4–5); [15–23 s] valor; [23–27 s] cierre con autoridad médica; [27–30 s] motivo concreto para compartir.
+- Reel / TikTok / Short / reel herida abierta: TOPE ABSOLUTO 40 s (unas 97 palabras habladas a 145 ppm); ideal 25–30 s, unas 70 palabras. Más de 40 s es ERROR DURO y el veredicto es "no_sale" hasta recortarlo: di cuántas palabras sobran y qué frases cortar primero. [0–3 s] gancho; [3–12 s] valor; [12–15 s] re-gancho (además del temprano del s 4–5); [15–23 s] valor; [23–27 s] cierre con autoridad médica; [27–30 s] motivo concreto para compartir.
 - Herida abierta: más dolor y amarillismo, rapid-fire tipo "60 segundos", más datos verificados que sorprendan; casi todo en fisiológico y seguridad; una sola acción de base (nunca nivel 3 o 4) y termina solo en "Chau".
 - Radio: 1:30–1:40, 220–245 palabras. Gancho en 1–2 frases (quién hizo qué y la cifra); imagen sostenida ("Piénsalo así:"); qué hizo cada grupo antes del resultado; "Ojo:" con la limitación; "Tres cosas. Una… Dos… Tres…" de nivel 1 (o 2 si es qué pedirle al médico); cierre "Soy el Dr. Sebastián Arrieta. Y…" con frase memorable de estima o trascendencia. Motor: seguridad + familia.
 - Carrusel / lámina: formato de guardado, en seguridad. Primera lámina, la herida; penúltima, protocolo en tres pasos; última, el otro.
