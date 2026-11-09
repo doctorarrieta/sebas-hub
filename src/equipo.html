@@ -280,6 +280,7 @@ html { scroll-behavior: smooth; }
     <div class="part-head"><h2 id="h-aud">Auditoría de guiones</h2><span class="sec-note">Pega un guion y recibe su revisión: gancho, retención, rigor, voz, Maslow × Lipman y una versión optimizada. Usa lo que aprendimos de nuestros propios videos.</span></div>
     <form id="aud-form" class="audform">
       <div class="filters">
+        <label for="aud-cuenta">Cuenta <select id="aud-cuenta"><option value="doctorarrieta">Doctor Arrieta / Anti Rebote</option><option value="antifragil">Método Antifrágil</option></select></label>
         <label for="aud-formato">Formato <select id="aud-formato"></select></label>
         <label for="aud-titulo">Tema <input id="aud-titulo" type="text" maxlength="200" placeholder="opcional"></label>
         <label for="aud-autor">Tu nombre <input id="aud-autor" type="text" maxlength="60" placeholder="opcional"></label>
@@ -504,7 +505,7 @@ html { scroll-behavior: smooth; }
     const VER = { lista: ["listo", "Lista para grabar"], ajustes: ["ajustar", "Sale con ajustes"], reescribir: ["rehacer", "Reescribir"], no_sale: ["rehacer", "No sale"] };
     const [vcls, vtxt] = VER[a.veredicto] || VER.ajustes;
     return `<article class="aud">
-      <div class="aud-top"><div class="aud-score">${esc(a.puntaje_global ?? "–")}<small>/100</small></div><span class="verd ${vcls}">${vtxt}</span><span class="sec-note">${esc(FORM_AUD[it.formato] || it.formato || "")}${it.titulo ? " · " + esc(it.titulo) : ""}${it.autor ? " · " + esc(it.autor) : ""} · ${esc(new Date(it.fecha).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></div>
+      <div class="aud-top"><div class="aud-score">${esc(a.puntaje_global ?? "–")}<small>/100</small></div><span class="verd ${vcls}">${vtxt}</span><span class="sec-note">${it.cuenta === "antifragil" ? "Antifrágil · " : ""}${esc(FORM_AUD[it.formato] || it.formato || "")}${it.titulo ? " · " + esc(it.titulo) : ""}${it.autor ? " · " + esc(it.autor) : ""} · ${esc(new Date(it.fecha).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></div>
       ${it.duracion ? `<div class="sec-note" style="font-weight:600;${it.duracion.excede ? "color:#b42318" : ""}">Duración medida: ${esc(it.duracion.palabras)} palabras ≈ ${esc(it.duracion.segundos)} s${it.duracion.excede ? " · supera el tope de 40 s, hay que recortar" : ""}</div>` : ""}
       ${a.resumen ? `<p style="margin:0;font-size:16px">${esc(a.resumen)}</p>` : ""}
       ${corr ? `<div><h4>Las 3 correcciones que importan</h4><ul>${corr}</ul></div>` : ""}
@@ -547,7 +548,7 @@ html { scroll-behavior: smooth; }
     $("aud-btn").disabled = true;
     const t0 = Date.now(); const tick = setInterval(() => { $("aud-estado").textContent = `Auditando… ${Math.round((Date.now() - t0) / 1000)} s (tarda 20 a 60 s)`; }, 500);
     try {
-      const r = await fetch(BASE + "/auditar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texto, formato: $("aud-formato").value, titulo: $("aud-titulo").value.trim(), autor: $("aud-autor").value.trim() }) });
+      const r = await fetch(BASE + "/auditar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texto, cuenta: $("aud-cuenta").value, formato: $("aud-formato").value, titulo: $("aud-titulo").value.trim(), autor: $("aud-autor").value.trim() }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "No se pudo auditar.");
       audHist.unshift(d); audHist = audHist.slice(0, 40); renderHist();

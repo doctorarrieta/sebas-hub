@@ -24,11 +24,13 @@ ok(r1.auditoria.puntaje_global === 72 && r1.usados_mes === 1, "devuelve la audit
 ok(pedido.url.includes("api.anthropic.com/v1/messages") && pedido.init.headers["x-api-key"] === "test", "llama a la API oficial con la llave del secreto");
 ok(pedido.body.system.includes("Nombrar el tema en la primera frase") && !pedido.body.system.includes("Patrón descartado"), "incluye nuestros aprendizajes vigentes y omite los descartados");
 ok(pedido.body.messages[0].content.includes(guion) && pedido.body.messages[0].content.includes("Reel"), "manda el guion y el formato");
-await A.auditarGuion(env2, { texto: guion }, fakeFetch);
+ok(!pedido.body.system.includes("CUENTA MÉTODO ANTIFRÁGIL") && pedido.body.system.trim().endsWith("}") === false && pedido.body.system.split("FORMATO DE SALIDA").length === 2, "Doctor Arrieta: sin reglas de Antifrágil y una sola instrucción de salida");
+await A.auditarGuion({ ...env2, AUDITOR_TOPE: "99" }, { texto: guion, cuenta: "antifragil" }, fakeFetch);
+ok(pedido.body.system.includes("CUENTA MÉTODO ANTIFRÁGIL") && pedido.body.system.includes("El Patriarca") && pedido.body.system.indexOf("CUENTA MÉTODO ANTIFRÁGIL") < pedido.body.system.indexOf("FORMATO DE SALIDA") && pedido.body.messages[0].content.startsWith("CUENTA: Método Antifrágil"), "Antifrágil: agrega su público, panel y reglas antes del formato de salida");
 err = null; try { await A.auditarGuion(env2, { texto: guion }, fakeFetch); } catch (e) { err = e.message; }
 ok(/tope/.test(err), "respeta el tope mensual");
 const h = await A.historialAuditorias(env2);
-ok(h.auditorias.length === 2 && h.auditorias[0].titulo === null && h.auditorias[1].autor === "Ana" && h.conectado, "guarda el historial (lo más nuevo primero)");
+ok(h.auditorias.length === 2 && h.auditorias[0].cuenta === "antifragil" && h.auditorias[1].autor === "Ana" && h.conectado, "guarda el historial (lo más nuevo primero)");
 const malFetch = async () => new Response(JSON.stringify({ error: { message: "invalid x-api-key" } }), { status: 401 });
 err = null; try { await A.auditarGuion({ ...env2, AUDITOR_TOPE: "99" }, { texto: guion }, malFetch); } catch (e) { err = e.message; }
 ok(/401/.test(err), "si la API falla, explica el error");
