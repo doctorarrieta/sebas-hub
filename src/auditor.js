@@ -100,7 +100,7 @@ export async function auditarGuion(env, a = {}, fetcher = fetch) {
   const r = await fetcher("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: env.AUDITOR_MODELO || "claude-opus-5-5", max_tokens: 16000, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model: env.AUDITOR_MODELO || "claude-opus-5-5", max_tokens: 32000, output_config: { effort: env.AUDITOR_ESFUERZO || "low" }, system, messages: [{ role: "user", content: user }] }),
   });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`La API de Claude respondió ${r.status}: ${body?.error?.message || "error"}`);
