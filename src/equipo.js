@@ -2,6 +2,7 @@
 // Se abre con un enlace secreto (/equipo/<código>), sin cuenta ni contraseña. Nada se puede aprobar ni publicar desde ahí.
 // La revisión diaria guarda los datos con la herramienta contenido_guardar_rendimiento.
 import paginaEquipo from "./equipo-pagina.js";
+import { auditarGuion, historialAuditorias } from "./auditor.js";
 
 const COLECCIONES = ["videos", "dias", "aprendizajes"];
 const now = () => new Date().toISOString();
@@ -68,10 +69,21 @@ export async function enlaceEquipo(env, a = {}) {
 const H = { "X-Robots-Tag": "noindex, nofollow", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" };
 
 export async function equipoHttp(req, env, url) {
-  const m = url.pathname.match(/^\/equipo\/([a-f0-9]{32})(\/datos)?\/?$/);
+  const m = url.pathname.match(/^\/equipo\/([a-f0-9]{32})(\/datos|\/auditar|\/auditorias)?\/?$/);
   const c = await env.HUB_KV.get(CLAVE);
-  if (!m || !c || m[1] !== c || req.method !== "GET")
+  const metodoOk = m && (m[2] === "/auditar" ? req.method === "POST" : req.method === "GET");
+  if (!m || !c || m[1] !== c || !metodoOk)
     return new Response("Este enlace no existe o ya no es válido. Pide el enlace actualizado.", { status: 404, headers: { ...H, "content-type": "text/plain; charset=utf-8" } });
+  if (m[2] === "/auditorias") return Response.json(await historialAuditorias(env), { headers: H });
+  if (m[2] === "/auditar") {
+    if (Number(req.headers.get("content-length") || 0) > 64 * 1024) return Response.json({ error: "Guion demasiado grande." }, { status: 413, headers: H });
+    try {
+      const b = await req.json();
+      return Response.json(await auditarGuion(env, b), { headers: H });
+    } catch (e) {
+      return Response.json({ error: e.message || "No se pudo auditar." }, { status: 400, headers: H });
+    }
+  }
   if (m[2]) return Response.json(await leerRendimiento(env), { headers: H });
   return new Response(paginaEquipo, { headers: { ...H, "content-type": "text/html; charset=utf-8" } });
 }

@@ -223,6 +223,38 @@ select { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid
 html { scroll-behavior: smooth; }
 
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Auditoría de guiones */
+.audform { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.audform input[type=text] { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); min-width: 0; }
+.audform textarea { font: 15px/1.5 var(--body); width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical; }
+.audacts { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn-ok { background: var(--brand); border-color: var(--brand); color: var(--surface); font-weight: 600; }
+.aud { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 16px; margin-top: 14px; min-width: 0; }
+.aud-top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.aud-score { font: 800 44px/1 var(--display); font-variant-numeric: tabular-nums; }
+.aud-score small { font-size: 16px; color: var(--muted); font-weight: 600; }
+.verd { font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 6px 10px; border-radius: 999px; }
+.verd.listo { background: var(--brand-soft); color: var(--ok); } .verd.ajustar { background: var(--warn-soft); color: var(--warn); } .verd.rehacer { background: var(--urgent-soft); color: var(--urgent); }
+.crit { display: grid; gap: 10px; }
+.cr { display: grid; grid-template-columns: 13em minmax(0, 1fr) 2.6em; gap: 4px 12px; align-items: center; }
+.cr .track { height: 9px; border-radius: 5px; background: var(--sunk); overflow: hidden; }
+.cr .fill { display: block; height: 100%; border-radius: 5px; background: var(--brand); }
+.cr .fill.mid { background: var(--warn); } .cr .fill.low { background: var(--urgent); }
+.cr b { font: 600 14px/1 var(--mono); text-align: right; }
+.cr .why { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.cr .why em { color: var(--ink); font-style: normal; font-weight: 600; }
+.aud h4 { margin: 0 0 6px; font: 700 15px/1.3 var(--display); }
+.aud ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.err { border-left: 3px solid var(--urgent); padding-left: 10px; }
+.risk { border-left: 3px solid var(--warn); padding-left: 10px; }
+.q { font-style: italic; color: var(--muted); }
+.hooks li { font-weight: 500; }
+.hooks .rt { font: 500 11px/1 var(--mono); text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.aud pre { white-space: pre-wrap; font: 15px/1.55 var(--body); background: var(--sunk); border-radius: 8px; padding: 14px; margin: 0; }
+.copybtn { font-size: 13px; padding: 6px 10px; }
+.audhist { display: grid; gap: 8px; margin-top: 10px; }
+.audhist button { text-align: left; display: flex; justify-content: space-between; gap: 10px; width: 100%; }
+@media (max-width: 640px) { .cr { grid-template-columns: minmax(0, 1fr) 2.6em; } .cr .track { grid-column: 1 / -1; grid-row: 2; } }
 </style></head><body>
 <div class="wrap">
   <header>
@@ -232,7 +264,7 @@ html { scroll-behavior: smooth; }
     </div>
     <div class="meta"><span id="fresh">Cargando…</span><button id="reload" class="btn-ghost" type="button">Actualizar</button></div>
   </header>
-  <nav class="nav" aria-label="Secciones"><a href="#guiones-sec">Guiones</a><a href="#resumen">Resumen</a><a href="#rendimiento">Videos</a><a href="#dias-sec">Recomendaciones</a><a href="#aprend-sec">Aprendizajes</a></nav>
+  <nav class="nav" aria-label="Secciones"><a href="#guiones-sec">Guiones</a><a href="#auditoria">Auditoría</a><a href="#resumen">Resumen</a><a href="#rendimiento">Videos</a><a href="#dias-sec">Recomendaciones</a><a href="#aprend-sec">Aprendizajes</a></nav>
 
   <section class="part" id="guiones-sec" aria-labelledby="h-guiones">
     <div class="part-head"><h2 id="h-guiones">Guiones aprobados</h2><span class="sec-note">Todo lo que el doctor ya aprobó para grabar, editar o diseñar. Solo lectura.</span></div>
@@ -242,6 +274,21 @@ html { scroll-behavior: smooth; }
       <label for="f-gq">Buscar <input id="f-gq" type="search" placeholder="tema o palabra"></label>
     </div>
     <div id="guiones" class="guiones"><div class="empty">Cargando guiones…</div></div>
+  </section>
+
+  <section class="part" id="auditoria" aria-labelledby="h-aud">
+    <div class="part-head"><h2 id="h-aud">Auditoría de guiones</h2><span class="sec-note">Pega un guion y recibe su revisión: gancho, retención, rigor, voz, Maslow × Lipman y una versión optimizada. Usa lo que aprendimos de nuestros propios videos.</span></div>
+    <form id="aud-form" class="audform">
+      <div class="filters">
+        <label for="aud-formato">Formato <select id="aud-formato"></select></label>
+        <label for="aud-titulo">Tema <input id="aud-titulo" type="text" maxlength="200" placeholder="opcional"></label>
+        <label for="aud-autor">Tu nombre <input id="aud-autor" type="text" maxlength="60" placeholder="opcional"></label>
+      </div>
+      <textarea id="aud-texto" rows="9" placeholder="Pega aquí el guion completo (gancho, desarrollo y cierre)…" required></textarea>
+      <div class="audacts"><button type="submit" class="btn-ok" id="aud-btn">Auditar guion</button><span class="sec-note" id="aud-estado"></span></div>
+    </form>
+    <div id="aud-res"></div>
+    <details id="aud-hist-box"><summary>Auditorías anteriores</summary><div id="aud-hist" class="audhist"></div></details>
   </section>
 
   <section class="part" id="resumen" aria-labelledby="h-resumen">
@@ -437,6 +484,77 @@ html { scroll-behavior: smooth; }
     }
   }
   startPerf();
+
+  // ================= Auditoría de guiones =================
+  const BASE = location.pathname.replace(/\/$/, "");
+  let audHist = [];
+  try { $("aud-autor").value = localStorage.getItem("aud:autor") || ""; } catch {}
+  const barCls = (p) => (p >= 7 ? "" : p >= 5 ? " mid" : " low");
+  function audHtml(it) {
+    const a = it.auditoria || {};
+    const crit = (a.criterios || []).map((c) => { const na = c.puntaje == null || c.puntaje === ""; const p = na ? 0 : Math.max(0, Math.min(10, Number(c.puntaje) || 0)); return `<div class="cr"><span>${esc(c.nombre)}</span><span class="track"><span class="fill${barCls(p)}" style="width:${p * 10}%"></span></span><b>${na ? "–" : p}</b><div class="why">${esc(c.diagnostico || "")}${c.como_mejorar ? ` <em>→ ${esc(c.como_mejorar)}</em>` : ""}</div></div>`; }).join("");
+    const errs = (a.errores_duros || []).map((e) => `<li class="err"><b>${esc(e.regla)}</b>${e.cita ? ` · <span class="q">"${esc(e.cita)}"</span>` : ""}${e.arreglo ? `<br>→ ${esc(e.arreglo)}` : ""}</li>`).join("");
+    const risks = (a.riesgos_retencion || []).map((r) => `<li class="risk"><b>${esc(r.momento || "")}</b> ${r.cita ? `<span class="q">"${esc(r.cita)}"</span>` : ""}<br>${esc(r.riesgo || "")}${r.arreglo ? `<br>→ ${esc(r.arreglo)}` : ""}</li>`).join("");
+    const hooks = (a.ganchos_alternativos || []).map((h) => `<li><span class="rt">${esc(h.ruta || "")}</span>${esc(h.texto || "")}</li>`).join("");
+    const ml = a.maslow_lipman || {};
+    const apr = (a.aprendizajes_aplicados || []).map((x) => `<li>${esc(x)}</li>`).join("");
+    const VER = { lista: ["listo", "Lista para grabar"], ajustes: ["ajustar", "Sale con ajustes"], reescribir: ["rehacer", "Reescribir"], no_sale: ["rehacer", "No sale"] };
+    const [vcls, vtxt] = VER[a.veredicto] || VER.ajustes;
+    return `<article class="aud">
+      <div class="aud-top"><div class="aud-score">${esc(a.puntaje_global ?? "–")}<small>/100</small></div><span class="verd ${vcls}">${vtxt}</span><span class="sec-note">${esc(FORM_AUD[it.formato] || it.formato || "")}${it.titulo ? " · " + esc(it.titulo) : ""}${it.autor ? " · " + esc(it.autor) : ""} · ${esc(new Date(it.fecha).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }))}</span></div>
+      ${a.resumen ? `<p style="margin:0;font-size:16px">${esc(a.resumen)}</p>` : ""}
+      ${crit ? `<div class="crit">${crit}</div>` : ""}
+      ${errs ? `<div><h4>Errores que sí o sí se corrigen</h4><ul>${errs}</ul></div>` : ""}
+      ${risks ? `<div><h4>Dónde se puede ir la gente</h4><ul>${risks}</ul></div>` : ""}
+      ${hooks ? `<div><h4>Ganchos alternativos</h4><ul class="hooks">${hooks}</ul></div>` : ""}
+      ${ml.necesidad || ml.nivel_lipman ? `<div><h4>Maslow × Lipman</h4><p style="margin:0">${ml.necesidad ? `<b>Necesidad:</b> ${esc(ml.necesidad)}. ` : ""}${ml.nivel_lipman ? `<b>Nivel Lipman:</b> ${esc(ml.nivel_lipman)}. ` : ""}${ml.como_subir ? `<br>→ ${esc(ml.como_subir)}` : ""}</p></div>` : ""}
+      ${apr ? `<div><h4>Lo que aplicó de nuestros videos</h4><ul>${apr}</ul></div>` : ""}
+      ${a.version_optimizada ? `<details open><summary><b>Versión optimizada</b> <button type="button" class="copybtn" data-copy="${esc(it.id)}">Copiar</button></summary><pre>${esc(a.version_optimizada)}</pre></details>` : ""}
+      <details><summary>Ver el guion original</summary><pre>${esc(it.texto || "")}</pre></details>
+    </article>`;
+  }
+  let FORM_AUD = {};
+  function renderHist() {
+    $("aud-hist").innerHTML = audHist.length ? audHist.map((it) => `<button type="button" data-ver="${esc(it.id)}"><span>${esc(it.titulo || (it.texto || "").slice(0, 70) + "…")}</span><span class="sec-note">${esc(it.auditoria?.puntaje_global ?? "–")}/100 · ${esc(new Date(it.fecha).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></button>`).join("") : `<div class="sec-note">Todavía no hay auditorías.</div>`;
+  }
+  async function cargarAud() {
+    try {
+      const r = await fetch(BASE + "/auditorias", { cache: "no-store" });
+      const d = await r.json();
+      FORM_AUD = d.formatos || {};
+      const sel = $("aud-formato");
+      if (!sel.options.length) sel.innerHTML = Object.entries(FORM_AUD).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join("");
+      audHist = d.auditorias || [];
+      renderHist();
+      $("aud-estado").textContent = d.conectado ? `${d.usados_mes} de ${d.tope_mes} auditorías usadas este mes` : "La auditoría todavía no está conectada.";
+      $("aud-btn").disabled = !d.conectado;
+    } catch { $("aud-estado").textContent = "No se pudo cargar la auditoría."; }
+  }
+  cargarAud();
+  $("aud-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const texto = $("aud-texto").value.trim();
+    if (texto.length < 40) { $("aud-estado").textContent = "Pega el guion completo."; return; }
+    try { localStorage.setItem("aud:autor", $("aud-autor").value.trim()); } catch {}
+    $("aud-btn").disabled = true;
+    const t0 = Date.now(); const tick = setInterval(() => { $("aud-estado").textContent = `Auditando… ${Math.round((Date.now() - t0) / 1000)} s (tarda 20 a 60 s)`; }, 500);
+    try {
+      const r = await fetch(BASE + "/auditar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ texto, formato: $("aud-formato").value, titulo: $("aud-titulo").value.trim(), autor: $("aud-autor").value.trim() }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "No se pudo auditar.");
+      audHist.unshift(d); audHist = audHist.slice(0, 40); renderHist();
+      $("aud-res").innerHTML = audHtml(d);
+      $("aud-estado").textContent = `Listo · ${d.usados_mes} de ${d.tope_mes} auditorías usadas este mes`;
+      $("aud-res").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) { $("aud-estado").textContent = err.message; }
+    finally { clearInterval(tick); $("aud-btn").disabled = false; }
+  });
+  document.addEventListener("click", (e) => {
+    const v = e.target.closest("[data-ver]");
+    if (v) { const it = audHist.find((x) => x.id === v.dataset.ver); if (it) { $("aud-res").innerHTML = audHtml(it); $("aud-res").scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
+    const c = e.target.closest("[data-copy]");
+    if (c) { e.preventDefault(); const it = audHist.find((x) => x.id === c.dataset.copy); if (it) navigator.clipboard?.writeText(it.auditoria?.version_optimizada || "").then(() => { c.textContent = "Copiado"; setTimeout(() => (c.textContent = "Copiar"), 1500); }); }
+  });
 
 
   $("reload").addEventListener("click", () => { $("fresh").textContent = "Actualizando…"; startPerf(); });
