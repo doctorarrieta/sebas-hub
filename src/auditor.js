@@ -36,6 +36,10 @@ export const ESQUEMA = `{
     {"nombre": "Lenguaje", …},
     {"nombre": "Ajuste al formato", …}
   ],
+  "fallas_gancho": [{"falla": "Tarda" | "Confunde" | "No es para mí" | "No intriga", "resultado": "PASA" | "FALLA", "cita": "palabras exactas que la causan (vacío si pasa)"}],
+  "imagen_clave": "qué debe verse del segundo 0 al 3 y qué texto en pantalla (3 a 6 palabras); si hay que fabricarla, dilo",
+  "panel": [{"espectador": "La que hace scroll" | "La cuidadora" | "La que ya rebotó" | "El de la pastilla mágica" | "El colega" | "La paciente de Anti Rebote", "decision": "ME QUEDO" | "ME VOY", "razon": "atada a algo concreto del guion"}],
+  "correcciones_prioritarias": [{"antes": "texto exacto", "despues": "cómo queda", "costo": "cortar | texto en pantalla | regrabar", "por_que": "quién del panel pasa a quedarse"}],
   "errores_duros": [{"regla": "regla rota", "cita": "texto exacto del guion", "arreglo": "cómo debe quedar"}],
   "riesgos_retencion": [{"momento": "p. ej. 4–8 s", "cita": "texto exacto", "riesgo": "por qué ahí se va la gente", "arreglo": "…"}],
   "ganchos_alternativos": [{"ruta": "shock | comparativa | emocional | polémico | lo que nadie te dice | cultural…", "texto": "una sola frase"}],
@@ -43,7 +47,7 @@ export const ESQUEMA = `{
   "aprendizajes_aplicados": ["patrón de nuestros propios videos que usaste para juzgar, con el video que lo muestra"],
   "version_optimizada": "el guion completo reescrito, listo para grabar o publicar, en el mismo formato"
 }
-Responde SOLO con ese objeto JSON válido: sin texto antes ni después, sin bloques de código. veredicto: "no_sale" (hay error bloqueante), "reescribir" (promedio < 6), "ajustes" (6 a 7,9) o "lista" (8 o más, lista para grabar o publicar). puntaje_global = promedio de los criterios aplicables × 10. Entre 3 y 5 ganchos alternativos. Si no hay errores duros, lista vacía. Cita siempre el texto exacto del guion. En "aprendizajes_aplicados" usa solo patrones de la sección de nuestros propios videos.`;
+Responde SOLO con ese objeto JSON válido: sin texto antes ni después, sin bloques de código. veredicto: "no_sale" (hay error bloqueante), "reescribir" (promedio < 6), "ajustes" (6 a 7,9) o "lista" (8 o más, lista para grabar o publicar). puntaje_global = promedio de los criterios aplicables × 10. Las 4 fallas siempre, los 6 espectadores siempre (solo los primeros 3 segundos) y máximo 3 correcciones prioritarias. En formatos sin video (X, Threads, LinkedIn, radio, lámina) adapta: la "imagen clave" es la primera línea o lo que se ve primero. Entre 3 y 5 ganchos alternativos, de rutas distintas. Si no hay errores duros, lista vacía. Cita siempre el texto exacto del guion. En "aprendizajes_aplicados" usa solo patrones de la sección de nuestros propios videos.`;
 
 // Lo aprendido de los propios videos: aprendizajes, últimas recomendaciones y los videos con mejor y peor arranque.
 export async function contextoPropio(env) {
