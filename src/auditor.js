@@ -100,12 +100,15 @@ export async function auditarGuion(env, a = {}, fetcher = fetch) {
   const r = await fetcher("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: env.AUDITOR_MODELO || "claude-opus-5-5", max_tokens: 6000, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model: env.AUDITOR_MODELO || "claude-opus-5-5", max_tokens: 16000, system, messages: [{ role: "user", content: user }] }),
   });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`La API de Claude respondió ${r.status}: ${body?.error?.message || "error"}`);
   const out = (body.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
-  const auditoria = sacarJson(out);
+  if (body.stop_reason === "max_tokens") throw new Error("La auditoría salió demasiado larga y se cortó. Intenta de nuevo o divide el guion.");
+  let auditoria;
+  try { auditoria = sacarJson(out); }
+  catch (e) { console.log("auditor: respuesta no válida", body.stop_reason, out.slice(0, 500)); throw new Error(`La respuesta no trajo una auditoría válida (${body.stop_reason || "sin motivo"}). Intenta de nuevo.`); }
   await env.HUB_KV.put(kMes, String(usados + 1), { expirationTtl: 60 * 60 * 24 * 40 });
 
   const item = {
