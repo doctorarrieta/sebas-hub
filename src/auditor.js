@@ -53,7 +53,7 @@ export const ESQUEMA = `{
   "aprendizajes_aplicados": ["patrón de nuestros propios videos que usaste para juzgar, con el video que lo muestra"],
   "version_optimizada": "el guion completo reescrito, listo para grabar o publicar, en el mismo formato"
 }
-Responde SOLO con ese objeto JSON válido: sin texto antes ni después, sin bloques de código. veredicto: "no_sale" (hay error bloqueante), "reescribir" (promedio < 6), "ajustes" (6 a 7,9) o "lista" (8 o más, lista para grabar o publicar). puntaje_global = promedio de los criterios aplicables × 10. Las 4 fallas siempre, los 6 espectadores siempre (solo los primeros 3 segundos) y máximo 3 correcciones prioritarias. En formatos sin video (X, Threads, LinkedIn, radio, lámina) adapta: la "imagen clave" es la primera línea o lo que se ve primero. Entre 3 y 5 ganchos alternativos, de rutas distintas. Si no hay errores duros, lista vacía. Cita siempre el texto exacto del guion. En "aprendizajes_aplicados" usa solo patrones de la sección de nuestros propios videos.`;
+Responde SOLO con ese objeto JSON válido: sin texto antes ni después, sin bloques de código. Dentro de los textos NUNCA uses comillas dobles ("): cuando cites palabras del guion o de un texto en pantalla, usa comillas latinas «». veredicto: "no_sale" (hay error bloqueante), "reescribir" (promedio < 6), "ajustes" (6 a 7,9) o "lista" (8 o más, lista para grabar o publicar). puntaje_global = promedio de los criterios aplicables × 10. Las 4 fallas siempre, los 6 espectadores siempre (solo los primeros 3 segundos) y máximo 3 correcciones prioritarias. En formatos sin video (X, Threads, LinkedIn, radio, lámina) adapta: la "imagen clave" es la primera línea o lo que se ve primero. Entre 3 y 5 ganchos alternativos, de rutas distintas. Si no hay errores duros, lista vacía. Cita siempre el texto exacto del guion. En "aprendizajes_aplicados" usa solo patrones de la sección de nuestros propios videos.`;
 
 // Lo aprendido de los propios videos: aprendizajes, últimas recomendaciones y los videos con mejor y peor arranque.
 export async function contextoPropio(env) {
@@ -80,6 +80,23 @@ export async function contextoPropio(env) {
   const comp = vids.filter((v) => typeof v.compartidos_1000 === "number" && v.tema).sort((a, b) => b.compartidos_1000 - a.compartidos_1000);
   if (comp.length >= 3) lineas.push("", "LO MÁS COMPARTIDO POR CADA MIL VISTAS:", ...comp.slice(0, 5).map(fmt));
   return lineas.length ? lineas.join("\n") : "Todavía no hay aprendizajes guardados de nuestros videos.";
+}
+
+// Escapa comillas dobles que aparecen dentro de un valor de texto (las que no abren ni cierran un string JSON).
+export function repararComillas(t) {
+  let out = "", dentro = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (c === "\\" && dentro) { out += c + (t[i + 1] || ""); i++; continue; }
+    if (c === '"') {
+      if (!dentro) { dentro = true; out += c; continue; }
+      let j = i + 1; while (j < t.length && /\s/.test(t[j])) j++;
+      if (j >= t.length || ",:}]".includes(t[j])) { dentro = false; out += c; } else out += '\\"';
+      continue;
+    }
+    out += c;
+  }
+  return out;
 }
 
 function sacarJson(t) {
@@ -126,7 +143,14 @@ export async function auditarGuion(env, a = {}, fetcher = fetch) {
   }
   let auditoria;
   try { auditoria = sacarJson(out); }
-  catch (e) { console.log("auditor: respuesta no válida", body.stop_reason, out.slice(0, 500)); throw new Error(`La respuesta no trajo una auditoría válida (${body.stop_reason || "sin motivo"}). Intenta de nuevo.`); }
+  catch (e) {
+    // Reparación: comillas dobles sin escapar dentro de un texto (el error más común).
+    try { auditoria = sacarJson(repararComillas(out)); }
+    catch {
+      await env.HUB_KV.put("auditor:ultimo_error", JSON.stringify({ fecha: now(), motivo: String(e.message || e), stop: body.stop_reason, inicio: out.slice(0, 1500), fin: out.slice(-1500) }), { expirationTtl: 60 * 60 * 24 * 7 });
+      throw new Error(`La respuesta no trajo una auditoría válida (${body.stop_reason || "sin motivo"}). Intenta de nuevo.`);
+    }
+  }
   await env.HUB_KV.put(kMes, String(usados + 1), { expirationTtl: 60 * 60 * 24 * 40 });
 
   const item = {
