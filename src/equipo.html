@@ -275,10 +275,10 @@ html { scroll-behavior: smooth; }
   <nav class="nav" aria-label="Secciones"><a href="#guiones-sec">Guiones</a><a href="#auditoria">Auditoría</a><a href="#resumen">Resumen</a><a href="#rendimiento">Videos</a><a href="#dias-sec">Recomendaciones</a><a href="#aprend-sec">Aprendizajes</a></nav>
 
   <section class="part" id="guiones-sec" aria-labelledby="h-guiones">
-    <div class="part-head"><h2 id="h-guiones">Guiones aprobados</h2><span class="sec-note">Todo lo que el doctor ya aprobó para grabar, editar o diseñar. Solo lectura.</span></div>
+    <div class="part-head"><h2 id="h-guiones">Guiones aprobados</h2><span class="sec-note">Todo lo que el doctor ya aprobó para grabar, editar o diseñar. Cuando lo grabes, márcalo como grabado; si no se va a usar, archívalo.</span></div>
     <div class="filters">
       <label for="f-gform">Formato <select id="f-gform"><option value="">Todos</option><option value="reel">Reel 30 s</option><option value="reel_herida">Reel herida abierta</option><option value="radio">Radio</option><option value="youtube">YouTube</option><option value="carrusel">Carrusel / lámina</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option></select></label>
-      <label for="f-gest">Estado <select id="f-gest"><option value="">Todos</option><option value="aprobada">Por producir</option><option value="enviada_equipo">Enviado al equipo</option><option value="programada">Programado</option><option value="publicada">Publicado</option></select></label>
+      <label for="f-gest">Estado <select id="f-gest"><option value="">Todos</option><option value="aprobada">Por producir</option><option value="enviada_equipo">Enviado al equipo</option><option value="grabada">Grabado</option><option value="programada">Programado</option><option value="publicada">Publicado</option><option value="archivada">Archivado</option></select></label>
       <label for="f-gord">Orden <select id="f-gord"><option value="desc">Más recientes primero</option><option value="asc">Más antiguos primero</option></select></label>
       <label for="f-gq">Buscar <input id="f-gq" type="search" placeholder="tema o palabra"></label>
     </div>
@@ -457,14 +457,31 @@ html { scroll-behavior: smooth; }
   }
   // ================= Guiones aprobados =================
   const FN = { reel: "Reel 30 s", reel_herida: "Reel herida abierta", radio: "Radio", youtube: "YouTube", carrusel: "Carrusel / lámina", facebook: "Facebook", linkedin: "LinkedIn", otro: "Otro" };
-  const EN = { aprobada: "Por producir", enviada_equipo: "Enviado al equipo", programada: "Programado", publicada: "Publicado" };
+  const EN = { aprobada: "Por producir", enviada_equipo: "Enviado al equipo", grabada: "Grabado", programada: "Programado", publicada: "Publicado", archivada: "Archivado" };
   let guiones = [];
   const ED = [["gancho_pantalla", "Gancho en pantalla (0–3 s)"], ["primer_frame", "Primer cuadro"], ["re_gancho", "Re-gancho"], ["ritmo", "Ritmo y cortes"], ["textos_pantalla", "Textos en pantalla"], ["broll", "Apoyos visuales (b-roll)"], ["subtitulos", "Subtítulos"], ["musica_sonido", "Música y sonido"], ["cierre", "Cierre y CTA"], ["evitar", "Evitar"]];
   const editHtml = (e) => e && typeof e === "object" ? `<div class="gedit"><h4>Edición para máxima retención</h4><dl>${ED.filter(([k]) => e[k]).map(([k, t]) => `<dt>${esc(t)}</dt><dd>${esc(e[k])}</dd>`).join("")}</dl></div>` : "";
+  const movBtns = (g) => ["aprobada", "enviada_equipo"].includes(g.estado)
+    ? `<div class="gacts gmov" data-id="${esc(g.id)}"><button type="button" class="btn-ok" data-mov="grabada">Marcar grabado</button><button type="button" data-mov="archivada">Archivar</button><span class="sec-note" aria-live="polite"></span></div>`
+    : ["grabada", "archivada"].includes(g.estado)
+    ? `<div class="gacts gmov" data-id="${esc(g.id)}"><button type="button" data-mov="aprobada">Volver a por producir</button><span class="sec-note" aria-live="polite"></span></div>` : "";
+  $("guiones").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button[data-mov]"); if (!b) return;
+    const box = b.closest(".gmov"), id = Number(box.dataset.id), estado = b.dataset.mov, msg = box.querySelector(".sec-note");
+    box.querySelectorAll("button").forEach((x) => (x.disabled = true)); msg.textContent = "Guardando…";
+    try {
+      let autor = ""; try { autor = localStorage.getItem("aud:autor") || ""; } catch {}
+      const r = await fetch(location.pathname.replace(/\/$/, "") + "/estado", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, estado, autor }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.status);
+      const g = guiones.find((x) => x.id === id); if (g) { g.estado = d.estado; g.actualizada = d.actualizada; }
+      renderGuiones();
+    } catch (e) { msg.textContent = "No se pudo: " + e.message; box.querySelectorAll("button").forEach((x) => (x.disabled = false)); }
+  });
   function renderGuiones() {
     const f = $("f-gform").value, e = $("f-gest").value, q = $("f-gq").value.trim().toLowerCase();
     const dir = $("f-gord").value === "asc" ? 1 : -1;
-    const l = guiones.filter((g) => (!f || g.formato === f) && (!e || g.estado === e) && (!q || [g.titulo, g.gancho, g.texto, g.copy].join(" ").toLowerCase().includes(q)))
+    const l = guiones.filter((g) => (!f || g.formato === f) && (e ? g.estado === e : g.estado !== "archivada") && (!q || [g.titulo, g.gancho, g.texto, g.copy].join(" ").toLowerCase().includes(q)))
       .sort((a, b) => dir * ((Date.parse(a.actualizada) || 0) - (Date.parse(b.actualizada) || 0)));
     $("guiones").innerHTML = l.length ? l.map((g) => `<article class="gcard">
       <div class="gmeta"><span class="gtag">${esc(FN[g.formato] || g.formato)}</span><span class="gtag${g.estado === "aprobada" ? " listo" : ""}">${esc(EN[g.estado] || g.estado)}</span><span>Pieza ${esc(g.id)} · ${esc(new Date(g.actualizada).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></div>
@@ -474,6 +491,7 @@ html { scroll-behavior: smooth; }
       <details><summary>Ver guion completo</summary><pre>${esc(g.texto)}</pre></details>
       ${g.copy ? `<details><summary>Ver copy (texto de la publicación)</summary><pre>${esc(g.copy)}</pre></details>` : ""}
       <div class="gacts">${g.referencia ? `<span>Fuente: ${g.referencia_url ? `<a href="${esc(g.referencia_url)}" target="_blank" rel="noopener">${esc(g.referencia)}</a>` : esc(g.referencia)}</span>` : ""}${g.drive_enlace ? `<a href="${esc(g.drive_enlace)}" target="_blank" rel="noopener">Abrir en Drive</a>` : ""}${g.enlace_publicado ? `<a href="${esc(g.enlace_publicado)}" target="_blank" rel="noopener">Ver publicado</a>` : ""}</div>
+      ${movBtns(g)}
     </article>`).join("") : `<div class="empty">No hay guiones con ese filtro.</div>`;
   }
   ["f-gform", "f-gest", "f-gord"].forEach((id) => $(id).addEventListener("change", renderGuiones));

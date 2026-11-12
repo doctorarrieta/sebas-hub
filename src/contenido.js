@@ -12,7 +12,8 @@ const FUENTES = ["x", "instagram", "tiktok", "blueprint", "paper", "podcast", "n
 const PRIORIDADES = ["banco", "esta_semana", "grabar_hoy"];
 const ESTADOS_IDEA = ["nueva", "verificando", "verificada", "descartada", "en_produccion", "usada"];
 const FORMATOS = ["radio", "reel", "reel_herida", "linkedin", "threads", "facebook", "x", "carrusel", "youtube", "otro"];
-const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "enviada_equipo", "rechazada", "programada", "publicada"];
+const ESTADOS_PIEZA = ["borrador", "por_aprobar", "aprobada", "enviada_equipo", "grabada", "rechazada", "programada", "publicada", "archivada"];
+// grabada: el reel o video ya se grabó (espera edición o publicación). archivada: aprobada pero no se usará; sale de las listas activas.
 const CARRILES = ["agencia", "creador"]; // carrusel: agencia = diseñadoras proponen el gancho; creador = El Creador lo escribe completo
 
 const now = () => new Date().toISOString();
@@ -424,7 +425,7 @@ export const contenidoTools = [
   },
   {
     name: "contenido_listar_piezas",
-    description: "Lista piezas por estado (borrador, por_aprobar, aprobada, rechazada, programada, publicada) y formato. Usa estado 'por_aprobar' para ver lo pendiente de aprobación.",
+    description: "Lista piezas por estado (borrador, por_aprobar, aprobada, enviada_equipo, grabada, rechazada, programada, publicada, archivada) y formato. Usa estado 'por_aprobar' para ver lo pendiente de aprobación.",
     inputSchema: {
       type: "object",
       properties: {

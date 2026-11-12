@@ -41,12 +41,31 @@ export async function leerRendimiento(env) {
 // Guiones que el equipo necesita para grabar, editar o diseñar: solo los ya aprobados por el doctor.
 // (X y Threads no van: se publican solos desde el hub.)
 export const FORMATOS_EQUIPO = ["reel", "reel_herida", "radio", "youtube", "carrusel", "facebook", "linkedin", "otro"];
+// El equipo solo puede mover un guion ya aprobado entre "por producir", "grabado" y "archivado". Nunca aprueba ni publica.
+const MOVIBLES = ["aprobada", "enviada_equipo", "grabada", "archivada"];
+const DESTINOS_EQUIPO = { grabada: "Grabado", archivada: "Archivado", aprobada: "Por producir" };
+export async function marcarPiezaEquipo(env, b = {}) {
+  const id = Number(b.id), estado = String(b.estado || "");
+  if (!Number.isInteger(id) || id <= 0) throw new Error("Falta el número de pieza.");
+  if (!DESTINOS_EQUIPO[estado]) throw new Error("Estado no permitido.");
+  const r = await env.HUB_DB.prepare("SELECT id, estado, formato, notas FROM piezas WHERE id = ?").bind(id).first();
+  if (!r || !FORMATOS_EQUIPO.includes(r.formato)) throw new Error("Esa pieza no está en el tablero.");
+  if (!MOVIBLES.includes(r.estado)) throw new Error("Esa pieza ya no se puede mover desde el tablero.");
+  if (estado === "aprobada" && !["grabada", "archivada"].includes(r.estado)) throw new Error("Esa pieza ya está por producir.");
+  const ahora = new Date().toISOString();
+  const quien = String(b.autor || "").trim().slice(0, 40);
+  const nota = `${ahora.slice(0, 10)}: ${DESTINOS_EQUIPO[estado]} desde el tablero${quien ? " (" + quien + ")" : ""}.`;
+  await env.HUB_DB.prepare("UPDATE piezas SET estado = ?, actualizada = ?, notas = ? WHERE id = ?")
+    .bind(estado, ahora, r.notas ? r.notas + "\n" + nota : nota, id).run();
+  return { id, estado, actualizada: ahora };
+}
+
 export async function guionesAprobados(env) {
   const marcas = FORMATOS_EQUIPO.map(() => "?").join(",");
   const { results } = await env.HUB_DB.prepare(
     `SELECT id, formato, carril, titulo, gancho, ruta_gancho, texto, copy, referencia, referencia_url, estado, actualizada, fecha_publicacion, enlace_publicado, drive_enlace, edicion
-     FROM piezas WHERE estado IN ('aprobada','enviada_equipo','programada','publicada') AND formato IN (${marcas})
-     ORDER BY CASE estado WHEN 'aprobada' THEN 0 WHEN 'enviada_equipo' THEN 1 WHEN 'programada' THEN 2 ELSE 3 END, actualizada DESC LIMIT 300`
+     FROM piezas WHERE estado IN ('aprobada','enviada_equipo','grabada','programada','publicada','archivada') AND formato IN (${marcas})
+     ORDER BY CASE estado WHEN 'aprobada' THEN 0 WHEN 'enviada_equipo' THEN 1 WHEN 'grabada' THEN 2 WHEN 'programada' THEN 3 WHEN 'publicada' THEN 4 ELSE 5 END, actualizada DESC LIMIT 400`
   ).bind(...FORMATOS_EQUIPO).all();
   return results.map((r) => { let e = null; try { e = r.edicion ? JSON.parse(r.edicion) : null; } catch {} return { ...r, edicion: e }; });
 }
@@ -69,15 +88,20 @@ export async function enlaceEquipo(env, a = {}) {
 const H = { "X-Robots-Tag": "noindex, nofollow", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" };
 
 export async function equipoHttp(req, env, url) {
-  const m = url.pathname.match(/^\/equipo\/([a-f0-9]{32})(\/datos|\/auditar|\/auditorias)?\/?$/);
+  const m = url.pathname.match(/^\/equipo\/([a-f0-9]{32})(\/datos|\/auditar|\/auditorias|\/estado)?\/?$/);
   const c = await env.HUB_KV.get(CLAVE);
-  const metodoOk = m && (m[2] === "/auditar" ? req.method === "POST" : req.method === "GET");
+  const metodoOk = m && (m[2] === "/auditar" || m[2] === "/estado" ? req.method === "POST" : req.method === "GET");
   if (!m || !c || m[1] !== c || !metodoOk)
     return new Response("Este enlace no existe o ya no es válido. Pide el enlace actualizado.", { status: 404, headers: { ...H, "content-type": "text/plain; charset=utf-8" } });
   if (m[2] === "/auditorias") {
     const h = await historialAuditorias(env);
     if (url.searchParams.get("diag") === "1") h.ultimo_error = JSON.parse((await env.HUB_KV.get("auditor:ultimo_error")) || "null");
     return Response.json(h, { headers: H });
+  }
+  if (m[2] === "/estado") {
+    if (Number(req.headers.get("content-length") || 0) > 4096) return Response.json({ error: "Pedido demasiado grande." }, { status: 413, headers: H });
+    try { return Response.json(await marcarPiezaEquipo(env, await req.json()), { headers: H }); }
+    catch (e) { return Response.json({ error: e.message || "No se pudo cambiar." }, { status: 400, headers: H }); }
   }
   if (m[2] === "/auditar") {
     if (Number(req.headers.get("content-length") || 0) > 64 * 1024) return Response.json({ error: "Guion demasiado grande." }, { status: 413, headers: H });
