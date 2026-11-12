@@ -101,7 +101,9 @@ export async function auditarGuion(env, a = {}, fetcher = fetch) {
   const usados = Number((await env.HUB_KV.get(kMes)) || 0);
   if (usados >= tope) throw new Error(`Se llegó al tope de ${tope} auditorías de este mes. Pídele al doctor que lo amplíe.`);
 
-  const hablado = texto.replace(/\[[^\]]*\]/g, " ").replace(/#\S+/g, " ");
+  // Si el guion trae marcas de tiempo ([0–3 s]), solo se cuentan esas líneas: el resto (imagen clave, fuente, notas) no se locuta.
+  const lineasTiempo = texto.split("\n").filter((l) => /^\s*\**\s*\[\s*\d+\s*[–-]/.test(l));
+  const hablado = (lineasTiempo.length >= 3 ? lineasTiempo.join("\n") : texto).replace(/\[[^\]]*\]/g, " ").replace(/#\S+/g, " ");
   const palabras = (hablado.match(/[\p{L}\p{N}][\p{L}\p{N}'’%.,-]*/gu) || []).length;
   const segundos = Math.round((palabras / 145) * 60);
   const corto = ["reel", "reel_herida", "short"].includes(formato);
