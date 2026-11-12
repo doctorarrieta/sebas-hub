@@ -279,6 +279,7 @@ html { scroll-behavior: smooth; }
     <div class="filters">
       <label for="f-gform">Formato <select id="f-gform"><option value="">Todos</option><option value="reel">Reel 30 s</option><option value="reel_herida">Reel herida abierta</option><option value="radio">Radio</option><option value="youtube">YouTube</option><option value="carrusel">Carrusel / lámina</option><option value="facebook">Facebook</option><option value="linkedin">LinkedIn</option></select></label>
       <label for="f-gest">Estado <select id="f-gest"><option value="">Todos</option><option value="aprobada">Por producir</option><option value="enviada_equipo">Enviado al equipo</option><option value="programada">Programado</option><option value="publicada">Publicado</option></select></label>
+      <label for="f-gord">Orden <select id="f-gord"><option value="desc">Más recientes primero</option><option value="asc">Más antiguos primero</option></select></label>
       <label for="f-gq">Buscar <input id="f-gq" type="search" placeholder="tema o palabra"></label>
     </div>
     <div id="guiones" class="guiones"><div class="empty">Cargando guiones…</div></div>
@@ -301,7 +302,7 @@ html { scroll-behavior: smooth; }
       <div class="audacts"><button type="submit" class="btn-ok" id="aud-btn">Auditar guion</button><span class="sec-note" id="aud-estado"></span></div>
     </form>
     <div id="aud-res"></div>
-    <details id="aud-hist-box"><summary>Auditorías anteriores</summary><div id="aud-hist" class="audhist"></div></details>
+    <details id="aud-hist-box"><summary>Auditorías anteriores</summary><div class="filters" style="margin:8px 0"><label for="aud-ord">Orden <select id="aud-ord"><option value="desc">Más recientes primero</option><option value="asc">Más antiguos primero</option></select></label></div><div id="aud-hist" class="audhist"></div></details>
   </section>
 
   <section class="part" id="resumen" aria-labelledby="h-resumen">
@@ -462,7 +463,9 @@ html { scroll-behavior: smooth; }
   const editHtml = (e) => e && typeof e === "object" ? `<div class="gedit"><h4>Edición para máxima retención</h4><dl>${ED.filter(([k]) => e[k]).map(([k, t]) => `<dt>${esc(t)}</dt><dd>${esc(e[k])}</dd>`).join("")}</dl></div>` : "";
   function renderGuiones() {
     const f = $("f-gform").value, e = $("f-gest").value, q = $("f-gq").value.trim().toLowerCase();
-    const l = guiones.filter((g) => (!f || g.formato === f) && (!e || g.estado === e) && (!q || [g.titulo, g.gancho, g.texto, g.copy].join(" ").toLowerCase().includes(q)));
+    const dir = $("f-gord").value === "asc" ? 1 : -1;
+    const l = guiones.filter((g) => (!f || g.formato === f) && (!e || g.estado === e) && (!q || [g.titulo, g.gancho, g.texto, g.copy].join(" ").toLowerCase().includes(q)))
+      .sort((a, b) => dir * ((Date.parse(a.actualizada) || 0) - (Date.parse(b.actualizada) || 0)));
     $("guiones").innerHTML = l.length ? l.map((g) => `<article class="gcard">
       <div class="gmeta"><span class="gtag">${esc(FN[g.formato] || g.formato)}</span><span class="gtag${g.estado === "aprobada" ? " listo" : ""}">${esc(EN[g.estado] || g.estado)}</span><span>Pieza ${esc(g.id)} · ${esc(new Date(g.actualizada).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></div>
       <h3>${esc(g.titulo || "Sin título")}</h3>
@@ -473,7 +476,7 @@ html { scroll-behavior: smooth; }
       <div class="gacts">${g.referencia ? `<span>Fuente: ${g.referencia_url ? `<a href="${esc(g.referencia_url)}" target="_blank" rel="noopener">${esc(g.referencia)}</a>` : esc(g.referencia)}</span>` : ""}${g.drive_enlace ? `<a href="${esc(g.drive_enlace)}" target="_blank" rel="noopener">Abrir en Drive</a>` : ""}${g.enlace_publicado ? `<a href="${esc(g.enlace_publicado)}" target="_blank" rel="noopener">Ver publicado</a>` : ""}</div>
     </article>`).join("") : `<div class="empty">No hay guiones con ese filtro.</div>`;
   }
-  ["f-gform", "f-gest"].forEach((id) => $(id).addEventListener("change", renderGuiones));
+  ["f-gform", "f-gest", "f-gord"].forEach((id) => $(id).addEventListener("change", renderGuiones));
   $("f-gq").addEventListener("input", renderGuiones);
 
   async function startPerf() {
@@ -535,8 +538,11 @@ html { scroll-behavior: smooth; }
     </article>`;
   }
   let FORM_AUD = {};
+  $("aud-ord").addEventListener("change", () => renderHist());
   function renderHist() {
-    $("aud-hist").innerHTML = audHist.length ? audHist.map((it) => `<button type="button" data-ver="${esc(it.id)}"><span>${esc(it.titulo || (it.texto || "").slice(0, 70) + "…")}</span><span class="sec-note">${it.cuenta === "antifragil" ? "Antifrágil · " : ""}${esc(it.auditoria?.puntaje_global ?? "–")}/100 · ${esc(new Date(it.fecha).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></button>`).join("") : `<div class="sec-note">Todavía no hay auditorías.</div>`;
+    const dir = $("aud-ord").value === "asc" ? 1 : -1;
+    const lista = [...audHist].sort((a, b) => dir * ((Date.parse(a.fecha) || 0) - (Date.parse(b.fecha) || 0)));
+    $("aud-hist").innerHTML = lista.length ? lista.map((it) => `<button type="button" data-ver="${esc(it.id)}"><span>${esc(it.titulo || (it.texto || "").slice(0, 70) + "…")}</span><span class="sec-note">${it.cuenta === "antifragil" ? "Antifrágil · " : ""}${esc(it.auditoria?.puntaje_global ?? "–")}/100 · ${esc(new Date(it.fecha).toLocaleDateString("es-PE", { day: "2-digit", month: "short" }))}</span></button>`).join("") : `<div class="sec-note">Todavía no hay auditorías.</div>`;
   }
   async function cargarAud() {
     try {
